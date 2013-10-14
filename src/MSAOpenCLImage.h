@@ -15,7 +15,6 @@
 #pragma once
 
 #include "ofMain.h"
-#include <OpenCL/Opencl.h>
 #include "MSAOpenCLMemoryObject.h"
 
 
@@ -33,7 +32,7 @@ namespace msa {
 		// Image is not linked to an OpenGL texture
 		// for 2D image, leave depth as 1
 		// parameters with default values can be omited
-		void initWithoutTexture(int width,
+		bool initWithoutTexture(int width,
 								int height,
 								int depth = 1,
 								cl_channel_order imageChannelOrder = CL_RGBA,
@@ -45,7 +44,7 @@ namespace msa {
 		
 		// create a 2D Image from the ofTexture passed in (they share memory space on device)
 		// parameters with default values can be omited
-		void initFromTexture(ofTexture &tex,
+		bool initFromTexture(ofTexture &tex,
 							 cl_mem_flags memFlags = CL_MEM_READ_WRITE,
 							 int mipLevel = 0);
 		
@@ -53,7 +52,7 @@ namespace msa {
 		
 		// create both a 2D Image AND an ofTexture at the same time (they share memory space on device)
 		// parameters with default values can be omited
-		void initWithTexture(int width,
+		bool initWithTexture(int width,
 							 int height,
 							 int glTypeInternal = GL_RGBA,
 							 cl_mem_flags memFlags = CL_MEM_READ_WRITE);
@@ -63,7 +62,7 @@ namespace msa {
 		
 		// read from device memory, into main memoy (into dataPtr)
 		// if origin and/or region is NULL, entire image is read
-		void read(void *dataPtr,
+		bool read(void *dataPtr,
 				  bool blockingRead = CL_TRUE,
 				  size_t *pOrigin = NULL,
 				  size_t *pRegion = NULL,
@@ -72,7 +71,7 @@ namespace msa {
 		
 		// write from main memory (dataPtr), into device memory
 		// if origin and/or region is NULL, entire image is written
-		void write(void *dataPtr,
+		bool write(void *dataPtr,
 				   bool blockingWrite = CL_FALSE,
 				   size_t *pOrigin = NULL,
 				   size_t *pRegion = NULL,
@@ -82,7 +81,7 @@ namespace msa {
 		
 		// copy data from another image in device memory
 		// if origin and/or region is NULL, entire image is written
-		void copyFrom(OpenCLImage &srcImage,
+		bool copyFrom(OpenCLImage &srcImage,
 					  size_t *pSrcOrigin = NULL, 
 					  size_t *pDstOrigin = NULL, 
 					  size_t *pRegion = NULL);

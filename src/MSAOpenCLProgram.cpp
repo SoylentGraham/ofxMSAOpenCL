@@ -21,33 +21,35 @@ namespace msa {
 	}
 	
 	
-	void OpenCLProgram::loadFromFile(std::string filename, bool isBinary) { 
-		ofLog(OF_LOG_VERBOSE, "OpenCLProgram::loadFromFile " + filename + ", isBinary: " + ofToString(isBinary));
+	bool OpenCLProgram::loadFromFile(std::string filename, bool isBinary,const char* BuildOptions) { 
+		ofLog(OF_LOG_VERBOSE, "OpenCLProgram::loadFromFile " + filename + ", isBinary: " + ofToString(isBinary) + ", buildoptions: " + BuildOptions );
 		
 		string fullPath = ofToDataPath(filename.c_str());
 		
 		if(isBinary) {
 			//		clCreateProgramWithBinary
 			ofLog(OF_LOG_ERROR, "Binary programs not implemented yet\n");
-			assert(false);
+			return false;
 			
 		} else {
 			
-			char *source = OpenCL_textFileRead((char*)fullPath.c_str());
+			char *source = OpenCL_textFileRead( const_cast<char*>(fullPath.c_str()) );
 			if(source == NULL) {
 				ofLog(OF_LOG_ERROR, "Error loading program file: " + fullPath);
-				assert(false); 
+				return false;
 			}
 			
-			loadFromSource(source);
+			bool Success = loadFromSource( source, filename.c_str(), BuildOptions );
 			
 			free(source);
+
+			return Success;
 		}
 	}
 	
 	
 	
-	void OpenCLProgram::loadFromSource(std::string source) {
+	bool OpenCLProgram::loadFromSource(std::string source,const char* sourceLocation,const char* BuildOptions) {
 		ofLog(OF_LOG_VERBOSE, "OpenCLProgram::loadFromSource ");// + source);
 		
 		cl_int err;
@@ -57,21 +59,23 @@ namespace msa {
 		const char* csource = source.c_str();
 		clProgram = clCreateProgramWithSource(pOpenCL->getContext(), 1, &csource, NULL, &err);
 		
-		build();
+		return build( sourceLocation ? sourceLocation : "(From source)", BuildOptions );
 	} 
 	
 	
 	OpenCLKernel* OpenCLProgram::loadKernel(string kernelName) {
 		ofLog(OF_LOG_VERBOSE, "OpenCLProgram::loadKernel " + kernelName);
-		assert(clProgram);
+		if ( !clProgram )
+			return NULL;
 		
 		cl_int err;
 		
 		OpenCLKernel *k = new OpenCLKernel(pOpenCL, clCreateKernel(clProgram, kernelName.c_str(), &err), kernelName);
 		
 		if(err != CL_SUCCESS) {
-			ofLog(OF_LOG_ERROR, string("Error creating kernel: ") + kernelName);
-			assert(false);
+			ofLog(OF_LOG_ERROR, string("Error creating kernel: ") + kernelName + " [" + OpenCL::getErrorAsString(err) + "]" );
+			delete k;
+			return NULL;
 		}
 		
 		return k;
@@ -90,7 +94,7 @@ namespace msa {
 			return;
 		}
 		
-		size_t binaries_sizes[program_num_devices];
+		size_t* binaries_sizes = new size_t[program_num_devices];
 		
 		err = clGetProgramInfo(clProgram, CL_PROGRAM_BINARY_SIZES, program_num_devices*sizeof(size_t), binaries_sizes, NULL);
 		assert(err = CL_SUCCESS);
@@ -113,31 +117,57 @@ namespace msa {
 			delete [] binaries[i];
 		
 		delete [] binaries;
+		delete [] binaries_sizes;
 	}
 	
 	
-	void OpenCLProgram::build() {
+	bool OpenCLProgram::build(const char* ProgramSource,const char* BuildOptions) {
 		if(clProgram == NULL) {
 			ofLog(OF_LOG_ERROR, "Error creating program object.");
-			assert(false); 
+			return false;
 		}	
 		
 		string Options;
-		Options += "-I \"" + ofToDataPath("") + "\" ";
+		string Path = ofToDataPath("",true).c_str();
+
+		//	opencl (amd) requires paths with forward slashes
+		std::replace( Path.begin(), Path.end(), '\\', '/' );
+		Options += "-I \"" + Path + "\" ";
+		if ( BuildOptions )
+			Options += BuildOptions;
+	
+		string Debug;
+		Debug += "Build OpenCLProgram ";
+		Debug += ProgramSource;
+		Debug += ": (" + Options + ") ";
+		ofLog(OF_LOG_NOTICE, Debug + "...");
+
 		cl_int err = clBuildProgram(clProgram, 0, NULL, Options.c_str(), NULL, NULL);
-		if(err != CL_SUCCESS) {
-			ofLog(OF_LOG_ERROR, "\n\n ***** Error building program. ***** \n ***********************************\n\n");
-			//	get build log size first so we always have errors to display 
-			size_t len = 0;
-			int BuildInfoErr = clGetProgramBuildInfo(clProgram, pOpenCL->getDevice(), CL_PROGRAM_BUILD_LOG, 0, NULL, &len );
-			vector<char> buffer( len+1 );
-			BuildInfoErr = clGetProgramBuildInfo(clProgram, pOpenCL->getDevice(), CL_PROGRAM_BUILD_LOG, buffer.size(), &buffer.at(0), NULL );
-			buffer[len] = '\0';
+		
+		if ( err == CL_SUCCESS )
+			Debug += "CL_SUCESS";
+		else
+			Debug += string("Failed [") + OpenCL::getErrorAsString(err) + "]";
+		Debug += "\n------------------------------------\n\n";
+		ofLog( (err == CL_SUCCESS) ? OF_LOG_NOTICE : OF_LOG_ERROR, Debug);
+
+		//	get build log size first so we always have errors to display
+		size_t len = 0;
+		int BuildInfoErr = clGetProgramBuildInfo(clProgram, pOpenCL->getDevice(), CL_PROGRAM_BUILD_LOG, 0, NULL, &len );
+		vector<char> buffer( len+1 );
+		BuildInfoErr = clGetProgramBuildInfo(clProgram, pOpenCL->getDevice(), CL_PROGRAM_BUILD_LOG, buffer.size(), &buffer.at(0), NULL );
+		buffer[len] = '\0';
 			
+		if ( len > 1 )
+		{
+			//	errors might contain % symbols, which will screw up the va_args system when it tries to parse them...
+			std::replace( buffer.begin(), buffer.end(), '%', '@' );
+
 			const char* bufferString = &buffer[0];
 			ofLog(OF_LOG_ERROR, bufferString );
-			assert(false);
-		}	
+			ofLog( (err == CL_SUCCESS) ? OF_LOG_NOTICE : OF_LOG_ERROR, "\n------------------------------------\n");
+		}
+		return ( err == CL_SUCCESS );
 	}
 	
 	cl_program& OpenCLProgram::getCLProgram(){

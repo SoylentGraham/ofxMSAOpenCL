@@ -1,13 +1,14 @@
 #pragma once
 
 #include "ofMain.h"
-#include <OpenCL/Opencl.h>
+#include <assert.h>
+#include <cl/Opencl.h>
 #include "MSAOpenCLKernel.h"
 #include "MSAOpenCLProgram.h"
 #include "MSAOpenCLBuffer.h"
 #include "MSAOpenCLTypes.h"
 #include "MSAOpenCLImage.h"
-#include "MSAOpenCLImagePingPong.h"
+//#include "MSAOpenCLImagePingPong.h"
 
 namespace msa {
 	
@@ -37,14 +38,13 @@ namespace msa {
 		
 		// load a program (contains a bunch of kernels)
 		// returns pointer to the program should you need it (for most operations you won't need this)
-		OpenCLProgram*	loadProgramFromFile(string filename, bool isBinary = false);
+		OpenCLProgram*	loadProgramFromFile(string filename, bool isBinary=false,const char* BuildOptions=NULL);
 		OpenCLProgram*	loadProgramFromSource(string programSource);
 		
 		
 		// specify a kernel to load from the specified program
-		// if you leave the program parameter blank it will use the last loaded program
-		// returns pointer to the kernel should you need it (for most operations you won't need this)
-		OpenCLKernel*	loadKernel(string kernelName, OpenCLProgram *program = NULL);
+		// returns pointer to the kernel 
+		OpenCLKernel*	loadKernel(string kernelName,OpenCLProgram& program);
 		
 		
 		
@@ -103,20 +103,17 @@ namespace msa {
 										  void *dataPtr = NULL,
 										  bool blockingWrite = CL_FALSE);
 		
-		
-		// retrieve kernel so you can run it or setup params etc.
-		OpenCLKernel*	kernel(string kernelName);
-		
-		
+				
 		vector<OpenCLProgram*>	getPrograms() {
 			return programs;
 		}
 		
-		map<string, OpenCLKernel*>	getKernels() {
+		vector<OpenCLKernel*>	getKernels() {
 			return kernels;
 		}
 		
 		string getInfoAsString();
+		static const char*	getErrorAsString(cl_int err);
 		
 		struct {
 			cl_char		vendorName[1024];
@@ -158,9 +155,9 @@ namespace msa {
 		cl_context						clContext;
 		cl_command_queue				clQueue;
 		
-		vector<OpenCLProgram*>		programs;	
-		map<string, OpenCLKernel*>	kernels;
-		vector<OpenCLMemoryObject*>	memObjects;
+		vector<OpenCLProgram*>			programs;	
+		vector<OpenCLKernel*>			kernels;
+		vector<OpenCLMemoryObject*>		memObjects;
 		bool							isSetup;
 		
 		int createDevice(int clDeviceType, int numDevices);

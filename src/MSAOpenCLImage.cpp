@@ -9,7 +9,7 @@ namespace msa {
 	}
 	
 	
-	void OpenCLImage::initWithoutTexture(int w,
+	bool OpenCLImage::initWithoutTexture(int w,
 										 int h,
 										 int d,
 										 cl_channel_order imageChannelOrder,
@@ -30,7 +30,11 @@ namespace msa {
 		int image_row_pitch = 0;	// TODO
 		int image_slice_pitch = 0;
 		
-		if(clMemObject) clReleaseMemObject(clMemObject);
+		if(clMemObject) 
+		{
+			clReleaseMemObject(clMemObject);
+			clMemObject = NULL;
+		}
 		
 		if(depth == 1) {
 			clMemObject = clCreateImage2D(pOpenCL->getContext(), memFlags, &imageFormat, width, height, image_row_pitch, memFlags & CL_MEM_USE_HOST_PTR ? dataPtr : NULL, &err);
@@ -49,17 +53,24 @@ namespace msa {
 		assert(err == CL_SUCCESS);
 		assert(clMemObject);
 		
-		if(dataPtr) {
-			write(dataPtr, blockingWrite);
+		bool WriteSuccess = true;
+		if(dataPtr) 
+		{
+			WriteSuccess = write(dataPtr, blockingWrite);
 		}
 		
-		if(texture) delete texture;
-		texture = NULL;
+		if(texture) 
+		{
+			delete texture;
+			texture = NULL;
+		}
+
+		return WriteSuccess && clMemObject && (err == CL_SUCCESS);
 	}
 	
 	
 	
-	void OpenCLImage::initFromTexture(ofTexture &tex,
+	bool OpenCLImage::initFromTexture(ofTexture &tex,
 									  cl_mem_flags memFlags,
 									  int mipLevel)
 	{
@@ -68,10 +79,15 @@ namespace msa {
 		
 		init(tex.getWidth(), tex.getHeight(), 1);
 		
-		cl_int err;
-		if(clMemObject) clReleaseMemObject(clMemObject);
+		cl_int err = CL_SUCCESS;
+		if(clMemObject) 
+		{
+			clReleaseMemObject(clMemObject);
+			clMemObject = NULL;
+		}
 		
-		clMemObject = clCreateFromGLTexture2D(pOpenCL->getContext(), memFlags, tex.getTextureData().textureTarget, mipLevel, tex.getTextureData().textureID, &err);
+		//	gr: missing from amd sdk?
+		//clMemObject = clCreateFromGLTexture2D(pOpenCL->getContext(), memFlags, tex.getTextureData().textureTarget, mipLevel, tex.getTextureData().textureID, &err);
 		assert(err != CL_INVALID_CONTEXT);
 		assert(err != CL_INVALID_VALUE);
 		//	assert(err != CL_INVALID_MIPLEVEL);
@@ -82,23 +98,31 @@ namespace msa {
 		assert(clMemObject);
 		
 		texture = &tex;
+
+		return clMemObject && (err == CL_SUCCESS);
 	}
 	
 	
 	
 	
-	void OpenCLImage::initWithTexture(int w,
+	bool OpenCLImage::initWithTexture(int w,
 									  int h,
 									  int glTypeInternal,
 									  cl_mem_flags memFlags)
 	{
 		ofLog(OF_LOG_VERBOSE, "OpenCLImage::initWithTexture");
 		
-		if(texture) delete texture;
+		if(texture)
+		{
+			delete texture;
+			texture = NULL;
+		}
 		texture = new ofTexture();
 		texture->allocate(w, h, glTypeInternal);
-		initFromTexture(*texture, memFlags, 0);
+		if ( !initFromTexture(*texture, memFlags, 0) )
+			return false;
 		reset();
+		return true;
 	}
 	
 	
@@ -128,7 +152,8 @@ namespace msa {
 	void OpenCLImage::reset() {
 		ofLog(OF_LOG_VERBOSE, "OpenCLImage::reset()");
 		int numElements = width * height * 4; // TODO, make real
-		if(texture->getTextureData().pixelType == GL_FLOAT) numElements *= sizeof(cl_float);
+		if(texture->getTextureData().pixelType == GL_FLOAT) 
+			numElements *= sizeof(cl_float);
 		char *data = new char[numElements];
 		memset(data, 0, numElements);
 		write(data, true);
@@ -136,30 +161,30 @@ namespace msa {
 	}
 	
 	
-	void OpenCLImage::read(void *dataPtr, bool blockingRead, size_t *pOrigin, size_t *pRegion, size_t rowPitch, size_t slicePitch) {
+	bool OpenCLImage::read(void *dataPtr, bool blockingRead, size_t *pOrigin, size_t *pRegion, size_t rowPitch, size_t slicePitch) {
 		if(pOrigin == NULL) pOrigin = origin;
 		if(pRegion == NULL) pRegion = region;
 		
 		cl_int err = clEnqueueReadImage(pOpenCL->getQueue(), clMemObject, blockingRead, pOrigin, pRegion, rowPitch, slicePitch, dataPtr, 0, NULL, NULL);
-		assert(err == CL_SUCCESS);
+		return (err==CL_SUCCESS);
 	}
 	
 	
-	void OpenCLImage::write(void *dataPtr, bool blockingWrite, size_t *pOrigin, size_t *pRegion, size_t rowPitch, size_t slicePitch) {
+	bool OpenCLImage::write(void *dataPtr, bool blockingWrite, size_t *pOrigin, size_t *pRegion, size_t rowPitch, size_t slicePitch) {
 		if(pOrigin == NULL) pOrigin = origin;
 		if(pRegion == NULL) pRegion = region;
 		
 		cl_int err = clEnqueueWriteImage(pOpenCL->getQueue(), clMemObject, blockingWrite, pOrigin, pRegion, rowPitch, slicePitch, dataPtr, 0, NULL, NULL);
-		assert(err == CL_SUCCESS);
+		return (err==CL_SUCCESS);
 	}
 	
-	void OpenCLImage::copyFrom(OpenCLImage &srcImage, size_t *pSrcOrigin, size_t *pDstOrigin, size_t *pRegion) {
+	bool OpenCLImage::copyFrom(OpenCLImage &srcImage, size_t *pSrcOrigin, size_t *pDstOrigin, size_t *pRegion) {
 		if(pSrcOrigin == NULL) pSrcOrigin = origin;
 		if(pDstOrigin == NULL) pDstOrigin = origin;
 		if(pRegion == NULL) pRegion = region;
 		
 		cl_int err = clEnqueueCopyImage(pOpenCL->getQueue(), srcImage.getCLMem(), clMemObject, pSrcOrigin, pDstOrigin, pRegion, 0, NULL, NULL);
-		assert(err == CL_SUCCESS);
+		return (err==CL_SUCCESS);
 	}
 	
 	

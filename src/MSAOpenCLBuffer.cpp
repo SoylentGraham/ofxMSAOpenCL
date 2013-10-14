@@ -7,7 +7,7 @@ namespace msa {
 		ofLog(OF_LOG_VERBOSE, "OpenCLBuffer::OpenCLBuffer");
 	}
 	
-	void OpenCLBuffer::initBuffer(int numberOfBytes,
+	bool OpenCLBuffer::initBuffer(int numberOfBytes,
 								  cl_mem_flags memFlags,
 								  void *dataPtr,
 								  bool blockingWrite)
@@ -17,12 +17,30 @@ namespace msa {
 		
 		init();
 		
+		//	buffer of zero will fail
+		if ( numberOfBytes <= 0 )
+			return false;
+
+		//	trying to allocate something we KNOW is too big
+		if ( numberOfBytes > pOpenCL->info.maxMemAllocSize )
+			return false;
+
+		//	do not lose existing pointers
+		assert( !clMemObject );
 		cl_int err;
 		clMemObject = clCreateBuffer(pOpenCL->getContext(), memFlags, numberOfBytes, memFlags & CL_MEM_USE_HOST_PTR ? dataPtr : NULL, &err);
 		assert(err == CL_SUCCESS);
+		if ( err != CL_SUCCESS )
+			return false;
 		assert(clMemObject);
+		if ( !clMemObject )
+			return false;
 		
-		if(dataPtr) write(dataPtr, 0, numberOfBytes, blockingWrite);
+		if(dataPtr) 
+			if ( !write( dataPtr, 0, numberOfBytes, blockingWrite) )
+				return false;
+
+		return true;
 	}
 	
 	
@@ -44,20 +62,23 @@ namespace msa {
 	}
 	
 	
-	void OpenCLBuffer::read(void *dataPtr, int startOffsetBytes, int numberOfBytes, bool blockingRead) {
+	bool OpenCLBuffer::read(void *dataPtr, int startOffsetBytes, int numberOfBytes, bool blockingRead) {
 		cl_int err = clEnqueueReadBuffer(pOpenCL->getQueue(), clMemObject, blockingRead, startOffsetBytes, numberOfBytes, dataPtr, 0, NULL, NULL);
 		assert(err == CL_SUCCESS);
+		return err == CL_SUCCESS;
 	}
 	
 	
-	void OpenCLBuffer::write(void *dataPtr, int startOffsetBytes, int numberOfBytes, bool blockingWrite) {
+	bool OpenCLBuffer::write(void *dataPtr, int startOffsetBytes, int numberOfBytes, bool blockingWrite) {
 		cl_int err = clEnqueueWriteBuffer(pOpenCL->getQueue(), clMemObject, blockingWrite, startOffsetBytes, numberOfBytes, dataPtr, 0, NULL, NULL);
 		assert(err == CL_SUCCESS);
+		return err == CL_SUCCESS;
 	}
 	
-	void OpenCLBuffer::copyFrom(OpenCLBuffer &srcBuffer, int srcOffsetBytes, int dstOffsetBytes, int numberOfBytes) {
+	bool OpenCLBuffer::copyFrom(OpenCLBuffer &srcBuffer, int srcOffsetBytes, int dstOffsetBytes, int numberOfBytes) {
 		cl_int err = clEnqueueCopyBuffer(pOpenCL->getQueue(), srcBuffer.getCLMem(), clMemObject, srcOffsetBytes, dstOffsetBytes, numberOfBytes, 0, NULL, NULL);
 		assert(err == CL_SUCCESS);
+		return err == CL_SUCCESS;
 	}
 	
 	

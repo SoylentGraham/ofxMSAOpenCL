@@ -10,7 +10,6 @@
 #pragma once
 
 #include "ofMain.h"
-#include <OpenCL/Opencl.h>
 #include "MSAOpenCLMemoryObject.h"
 
 
@@ -50,12 +49,12 @@ namespace msa {
 		// run the kernel
 		// globalSize and localSize should be int arrays with same number of dimensions as numDimensions
 		// leave localSize blank to let OpenCL determine optimum
-		void	run(int numDimensions, size_t *globalSize, size_t *localSize = NULL);
+		bool	run(bool Blocking,int numDimensions, size_t *globalSize, size_t *localSize);
 		
 		// some wrappers for above to create the size arrays on the run
-		void	run1D(size_t globalSize, size_t localSize = 0);
-		void	run2D(size_t globalSizeX, size_t globalSizeY, size_t localSizeX = 0, size_t localSizeY = 0);
-		void	run3D(size_t globalSizeX, size_t globalSizeY, size_t globalSizeZ, size_t localSizeX = 0, size_t localSizeY = 0, size_t localSizeZ = 0);
+		bool	run1D(bool Blocking,size_t globalSize, size_t localSize = 0);
+		bool	run2D(bool Blocking,size_t globalSizeX, size_t globalSizeY, size_t localSizeX = 0, size_t localSizeY = 0);
+		bool	run3D(bool Blocking,size_t globalSizeX, size_t globalSizeY, size_t globalSizeZ, size_t localSizeX = 0, size_t localSizeY = 0, size_t localSizeZ = 0);
 		
 		cl_kernel& getCLKernel();
 		string getName();

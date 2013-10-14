@@ -1,7 +1,7 @@
 #pragma once
 
 #include "ofMain.h"
-#include "MSAPingPong.h"
+//#include "MSAPingPong.h"
 #include "MSAOpenCLImage.h"
 
 namespace msa {

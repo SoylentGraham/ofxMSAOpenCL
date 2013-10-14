@@ -1,19 +1,20 @@
 #include "MSAOpenCL.h"
 #include "MSAOpenCLProgram.h"
 #include "MSAOpenCLKernel.h"
-#include "OpenGL/OpenGL.h"
+//#define ENABLE_SETUP_FROM_OPENGL
 
 namespace msa {
 	
 	OpenCL *OpenCL::currentOpenCL = NULL;
 	
 	
-	OpenCL::OpenCL() {
+	OpenCL::OpenCL() :
+		isSetup		( false ),
+		clContext	( NULL ),
+		clDevice	( NULL ),
+		clQueue		( NULL )
+	{
 		ofLog(OF_LOG_VERBOSE, "OpenCL::OpenCL");
-		isSetup		= false;
-		clContext	= NULL;
-		clDevice	= NULL;
-		clQueue		= NULL;
 	}
 	
 	OpenCL::~OpenCL() {
@@ -21,9 +22,15 @@ namespace msa {
 		
 		clFinish(clQueue);
 		
-		for(int i=0; i<memObjects.size(); i++) delete memObjects[i];	// FIX
-		for(map<string, OpenCLKernel*>::iterator it = kernels.begin(); it !=kernels.end(); ++it) delete (OpenCLKernel*)it->second;
-		for(int i=0; i<programs.size(); i++) delete programs[i];
+		for(int i=0; i<memObjects.size(); i++) 
+			delete memObjects[i];	// FIX
+
+		for(int i=0;	i<kernels.size();	i++ )
+			delete kernels[i];
+
+		for(int i=0; i<programs.size(); i++) 
+			delete programs[i];
+
 		clReleaseCommandQueue(clQueue);
 		clReleaseContext(clContext);
 	}
@@ -59,6 +66,7 @@ namespace msa {
 	
 	
 	void OpenCL::setupFromOpenGL() {
+#if defined(ENABLE_SETUP_FROM_OPENGL)
 		ofLog(OF_LOG_VERBOSE, "OpenCL::setupFromOpenGL ");
 		
 		if(isSetup) {
@@ -93,6 +101,7 @@ namespace msa {
 		}
 		
 		createQueue();
+#endif
 	}	
 	
 	
@@ -111,10 +120,10 @@ namespace msa {
 	
 	
 	
-	OpenCLProgram* OpenCL::loadProgramFromFile(string filename, bool isBinary) { 
+	OpenCLProgram* OpenCL::loadProgramFromFile(string filename, bool isBinary,const char* BuildOptions) { 
 		ofLog(OF_LOG_VERBOSE, "OpenCL::loadProgramFromFile");
 		OpenCLProgram *p = new OpenCLProgram();
-		p->loadFromFile(filename, isBinary);
+		p->loadFromFile(filename, isBinary, BuildOptions );
 		programs.push_back(p);
 		return p;
 	}
@@ -123,17 +132,16 @@ namespace msa {
 	OpenCLProgram* OpenCL::loadProgramFromSource(string source) {
 		ofLog(OF_LOG_VERBOSE, "OpenCL::loadProgramFromSource");
 		OpenCLProgram *p = new OpenCLProgram();
-		p->loadFromSource(source);
+		p->loadFromSource(source,NULL,NULL);
 		programs.push_back(p);
 		return p;
 	} 
 	
 	
-	OpenCLKernel* OpenCL::loadKernel(string kernelName, OpenCLProgram *program) {
-		ofLog(OF_LOG_VERBOSE, "OpenCL::loadKernel " + kernelName + ", " + ofToString((int)program));
-		if(program == NULL) program = programs[programs.size() - 1];
-		OpenCLKernel *k = program->loadKernel(kernelName);
-		kernels[kernelName] = k;
+	OpenCLKernel* OpenCL::loadKernel(string kernelName,OpenCLProgram& program) {
+		ofLog(OF_LOG_VERBOSE, "OpenCL::loadKernel " + kernelName + ", " + program.getName() );
+		OpenCLKernel *k = program.loadKernel(kernelName);
+		kernels.push_back(k);
 		return k;
 	}
 	
@@ -181,11 +189,6 @@ namespace msa {
 		return clImage;
 	}
 	
-	
-	
-	OpenCLKernel* OpenCL::kernel(string kernelName) {
-		return kernels[kernelName];
-	}
 	
 	void OpenCL::flush() {
 		clFlush(clQueue);
@@ -317,6 +320,63 @@ namespace msa {
 		"\n*********\n\n";
 	}
 	
+	const char* OpenCL::getErrorAsString(cl_int err)
+	{
+		switch ( err )
+		{
+			case CL_SUCCESS:					return "Success";
+			case CL_DEVICE_NOT_FOUND:			return "Device not found";
+			case CL_DEVICE_NOT_AVAILABLE:		return "Device not available";
+			case CL_COMPILER_NOT_AVAILABLE:		return "Compiler not available";
+			case CL_MEM_OBJECT_ALLOCATION_FAILURE:	return "Memory object allocation failure";
+			case CL_OUT_OF_RESOURCES:			return "Out of resources";
+			case CL_OUT_OF_HOST_MEMORY:			return "Out of host memory";
+			case CL_PROFILING_INFO_NOT_AVAILABLE:	return "Profiling info not available";
+			case CL_MEM_COPY_OVERLAP:			return "Memory copy overlap";
+			case CL_IMAGE_FORMAT_MISMATCH:		return "Image format mismatch";
+			case CL_IMAGE_FORMAT_NOT_SUPPORTED:	return "Image format not supported";
+			case CL_BUILD_PROGRAM_FAILURE:		return "Build program failure";
+			case CL_MAP_FAILURE:				return "Map failure";
+			case CL_INVALID_VALUE:				return "Invalid value";
+			case CL_INVALID_DEVICE_TYPE:		return "Invalid device type";
+			case CL_INVALID_PLATFORM:			return "Invalid platform";
+			case CL_INVALID_DEVICE:				return "Invalid device";
+			case CL_INVALID_CONTEXT:			return "Invalid context";
+			case CL_INVALID_QUEUE_PROPERTIES:	return "Invalid queue properties";
+			case CL_INVALID_COMMAND_QUEUE:		return "Invalid command queue";
+			case CL_INVALID_HOST_PTR:			return "Invalid host pointer";
+			case CL_INVALID_MEM_OBJECT:			return "Invalid memory object";
+			case CL_INVALID_IMAGE_FORMAT_DESCRIPTOR:	return "Invalid image format descriptor";
+			case CL_INVALID_IMAGE_SIZE:			return "Invalid image size";
+			case CL_INVALID_SAMPLER:			return "Invalid sampler";
+			case CL_INVALID_BINARY:				return "Invalid binary";
+			case CL_INVALID_BUILD_OPTIONS:		return "Invalid build options";
+			case CL_INVALID_PROGRAM:			return "Invalid program";
+			case CL_INVALID_PROGRAM_EXECUTABLE:	return "Invalid program executable";
+			case CL_INVALID_KERNEL_NAME:		return "Invalid kernel name";
+			case CL_INVALID_KERNEL_DEFINITION:	return "Invalid kernel definition";
+			case CL_INVALID_KERNEL:				return "Invalid kernel";
+			case CL_INVALID_ARG_INDEX:			return "Invalid argument index";
+			case CL_INVALID_ARG_VALUE:			return "Invalid argument value";
+			case CL_INVALID_ARG_SIZE:			return "Invalid argument size";
+			case CL_INVALID_KERNEL_ARGS:		return "Invalid kernel arguments";
+			case CL_INVALID_WORK_DIMENSION:		return "Invalid work dimension";
+			case CL_INVALID_WORK_GROUP_SIZE:	return "Invalid work group size";
+			case CL_INVALID_WORK_ITEM_SIZE:		return "invalid work item size";
+			case CL_INVALID_GLOBAL_OFFSET:		return "Invalid global offset";
+			case CL_INVALID_EVENT_WAIT_LIST:	return "Invalid event wait list";
+			case CL_INVALID_EVENT:				return "Invalid event";
+			case CL_INVALID_OPERATION:			return "Invalid operation";
+			case CL_INVALID_GL_OBJECT:			return "Invalid OpenGL object";
+			case CL_INVALID_BUFFER_SIZE:		return "Invalid buffer size";
+			case CL_INVALID_MIP_LEVEL:			return "Invalid MIP level";
+		}
+    
+		//	unhandled case
+		assert(false);
+		return "Unhandled opencl error";
+	}
+
 	
 	void OpenCL::createQueue() {
 		clQueue = clCreateCommandQueue(clContext, clDevice, 0, NULL);

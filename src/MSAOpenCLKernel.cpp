@@ -26,30 +26,31 @@ namespace msa {
 	 assert(err == CL_SUCCESS);
 	 }*/
 	
-	void OpenCLKernel::run(int numDimensions, size_t *globalSize, size_t *localSize) {
+	bool OpenCLKernel::run(bool Blocking,int numDimensions, size_t *globalSize, size_t *localSize) {
 		assert(clKernel);
-		
-		cl_int err;
+		if ( !clKernel )
+			return false;
 		
 		//	size_t localSize = MIN(n, info.maxWorkGroupSize);
 		
-		err = clEnqueueNDRangeKernel(pOpenCL->getQueue(), clKernel, numDimensions, NULL, globalSize, localSize, 0, NULL, NULL);
+		cl_int err = clEnqueueNDRangeKernel(pOpenCL->getQueue(), clKernel, numDimensions, NULL, globalSize, localSize, 0, NULL, NULL);
 		assert(err == CL_SUCCESS);
+		return (err == CL_SUCCESS);
 	}
 	
-	void OpenCLKernel::run1D(size_t globalSize, size_t localSize) {
+	bool OpenCLKernel::run1D(bool Blocking,size_t globalSize, size_t localSize) {
 		size_t globalSizes[1];
 		globalSizes[0] = globalSize;
 		if(localSize) {
 			size_t localSizes[1];
 			localSizes[0] = localSize;
-			run(1, globalSizes, localSizes);
+			return run( Blocking, 1, globalSizes, localSizes);
 		} else {
-			run(1, globalSizes, NULL);
+			return run( Blocking, 1, globalSizes, NULL);
 		}
 	}
 	
-	void OpenCLKernel::run2D(size_t globalSizeX, size_t globalSizeY, size_t localSizeX, size_t localSizeY) {
+	bool OpenCLKernel::run2D(bool Blocking,size_t globalSizeX, size_t globalSizeY, size_t localSizeX, size_t localSizeY) {
 		size_t globalSizes[2];
 		globalSizes[0] = globalSizeX;
 		globalSizes[1] = globalSizeY;
@@ -57,13 +58,13 @@ namespace msa {
 			size_t localSizes[2];
 			localSizes[0] = localSizeX;
 			localSizes[1] = localSizeY;
-			run(2, globalSizes, localSizes);
+			return run( Blocking, 2, globalSizes, localSizes);
 		} else {
-			run(2, globalSizes, NULL);
+			return run( Blocking, 2, globalSizes, NULL);
 		}
 	}
 	
-	void OpenCLKernel::run3D(size_t globalSizeX, size_t globalSizeY, size_t globalSizeZ, size_t localSizeX, size_t localSizeY, size_t localSizeZ) {
+	bool OpenCLKernel::run3D(bool Blocking,size_t globalSizeX, size_t globalSizeY, size_t globalSizeZ, size_t localSizeX, size_t localSizeY, size_t localSizeZ) {
 		size_t globalSizes[3];
 		globalSizes[0] = globalSizeX;
 		globalSizes[1] = globalSizeY;
@@ -73,9 +74,9 @@ namespace msa {
 			localSizes[0] = localSizeX;
 			localSizes[1] = localSizeY;
 			localSizes[2] = localSizeZ;
-			run(3, globalSizes, localSizes);
+			return run( Blocking, 3, globalSizes, localSizes);
 		} else {
-			run(3, globalSizes, NULL);
+			return run( Blocking, 3, globalSizes, NULL);
 		}
 	}
 	

@@ -1,7 +1,6 @@
 #pragma once
 
 #include "ofMain.h"
-#include <OpenCL/Opencl.h>
 
 namespace msa { 
 	
@@ -13,21 +12,23 @@ namespace msa {
 		OpenCLProgram();
 		~OpenCLProgram();
 		
-		void loadFromFile(string filename, bool isBinary = false);
-		void loadFromSource(string source);
+		bool loadFromFile(string filename,bool isBinary,const char* BuildOptions);
+		bool loadFromSource(string source,const char* sourceLocation,const char* BuildOptions);
 		
-		OpenCLKernel* loadKernel(string kernelName);
+		OpenCLKernel*	loadKernel(string kernelName);
 		
-		void getBinary();
+		void			getBinary();
+		const string&	getName() const	{	return mName;	}
 		
-		cl_program& getCLProgram();
+		cl_program&		getCLProgram();
 		
 	protected:	
-		OpenCL*		pOpenCL;
+		bool			build(const char* sourceLocation,const char* BuildOptions);
+
+	protected:	
+		OpenCL*			pOpenCL;
 		cl_program		clProgram;
-		
-		void			build();
-		
+		string			mName;		//	for debug purposes only, most likely the filename the program was loaded from
 	};
 	
 }

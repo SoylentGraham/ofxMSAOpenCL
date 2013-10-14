@@ -14,7 +14,6 @@
 #pragma once
 
 #include "ofMain.h"
-#include <OpenCL/Opencl.h>
 #include "MSAOpenCLMemoryObject.h"
 
 namespace msa {
@@ -26,7 +25,7 @@ namespace msa {
 		
 		// if dataPtr parameter is passed in, data is uploaded immediately
 		// parameters with default values can be omited
-		void initBuffer(	int numberOfBytes,
+		bool initBuffer(	int numberOfBytes,
 						cl_mem_flags memFlags = CL_MEM_READ_WRITE,
 						void *dataPtr = NULL,
 						bool blockingWrite = CL_FALSE);
@@ -39,20 +38,20 @@ namespace msa {
 		
 		
 		// read from device memory, into main memoy (into dataPtr)
-		void read(void *dataPtr,
+		bool read(void *dataPtr,
 				  int startOffsetBytes,
 				  int numberOfBytes,
 				  bool blockingRead = CL_TRUE);
 		
 		// write from main memory (dataPtr), into device memory
-		void write(void *dataPtr,
+		bool write(void *dataPtr,
 				   int startOffsetBytes,
 				   int numberOfBytes,
 				   bool blockingWrite = CL_FALSE);
 		
 		
 		// copy data from another object on device memory
-		void copyFrom(OpenCLBuffer &srcBuffer,
+		bool copyFrom(OpenCLBuffer &srcBuffer,
 					  int srcOffsetBytes,
 					  int dstOffsetBytes,
 					  int numberOfBytes);
