@@ -22,13 +22,13 @@ namespace msa {
 	public:
 		
 		OpenCLBuffer();
-		
+
 		// if dataPtr parameter is passed in, data is uploaded immediately
 		// parameters with default values can be omited
 		bool initBuffer(	int numberOfBytes,
-						cl_mem_flags memFlags = CL_MEM_READ_WRITE,
-						void *dataPtr = NULL,
-						bool blockingWrite = CL_FALSE);
+						cl_mem_flags memFlags,
+						void *dataPtr,
+						bool blockingWrite,cl_command_queue Queue=NULL);
 		
 		
 		// create buffer from the GL Object - e.g. VBO (they share memory space on device)
@@ -41,20 +41,20 @@ namespace msa {
 		bool read(void *dataPtr,
 				  int startOffsetBytes,
 				  int numberOfBytes,
-				  bool blockingRead = CL_TRUE);
+				  bool blockingRead,cl_command_queue Queue=NULL);
 		
 		// write from main memory (dataPtr), into device memory
 		bool write(void *dataPtr,
 				   int startOffsetBytes,
 				   int numberOfBytes,
-				   bool blockingWrite = CL_FALSE);
+				   bool blockingWrite,cl_command_queue Queue=NULL);
 		
 		
 		// copy data from another object on device memory
 		bool copyFrom(OpenCLBuffer &srcBuffer,
 					  int srcOffsetBytes,
 					  int dstOffsetBytes,
-					  int numberOfBytes);
+					  int numberOfBytes,cl_command_queue Queue=NULL);
 		
 	protected:
 		//	int numberOfBytes;		//dont know how big it is if we pass in globject ?

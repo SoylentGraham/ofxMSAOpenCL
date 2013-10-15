@@ -58,12 +58,14 @@ namespace msa {
 		
 		cl_kernel& getCLKernel();
 		string getName();
-		
+		cl_command_queue	getQueue()	{	return mQueue;	}
+
 	protected:
 		string			name;
 		OpenCL*		pOpenCL;
 		cl_kernel		clKernel;
+		cl_command_queue	mQueue;
 		
-		OpenCLKernel(OpenCL *pOpenCL, cl_kernel clKernel, string name);
+		OpenCLKernel(OpenCL *pOpenCL, cl_kernel clKernel,cl_command_queue Queue,string name);
 	};
 }

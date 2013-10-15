@@ -63,14 +63,17 @@ namespace msa {
 	} 
 	
 	
-	OpenCLKernel* OpenCLProgram::loadKernel(string kernelName) {
+	OpenCLKernel* OpenCLProgram::loadKernel(string kernelName,cl_command_queue Queue) {
 		ofLog(OF_LOG_VERBOSE, "OpenCLProgram::loadKernel " + kernelName);
 		if ( !clProgram )
 			return NULL;
 		
-		cl_int err;
+		if ( !Queue )
+			Queue = pOpenCL->getQueue();
+
+		cl_int err = CL_SUCCESS;
 		
-		OpenCLKernel *k = new OpenCLKernel(pOpenCL, clCreateKernel(clProgram, kernelName.c_str(), &err), kernelName);
+		OpenCLKernel *k = new OpenCLKernel(pOpenCL, clCreateKernel(clProgram, kernelName.c_str(), &err), Queue, kernelName);
 		
 		if(err != CL_SUCCESS) {
 			ofLog(OF_LOG_ERROR, string("Error creating kernel: ") + kernelName + " [" + OpenCL::getErrorAsString(err) + "]" );

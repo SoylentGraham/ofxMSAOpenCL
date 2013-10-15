@@ -3,11 +3,13 @@
 
 namespace msa { 
 	
-	OpenCLKernel::OpenCLKernel(OpenCL* pOpenCL, cl_kernel clKernel, string name) {
+	OpenCLKernel::OpenCLKernel(OpenCL* pOpenCL, cl_kernel Kernel,cl_command_queue Queue, string Name) :
+		pOpenCL		( pOpenCL ),
+		name		( Name ),
+		clKernel	( Kernel ),
+		mQueue		( Queue )
+	{
 		ofLog(OF_LOG_VERBOSE, "OpenCLKernel::OpenCLKernel " + ofToString((int)pOpenCL) + ", " + name);
-		this->pOpenCL	= pOpenCL;
-		this->name		= name;
-		this->clKernel	= clKernel;
 	}
 	
 	
@@ -32,9 +34,16 @@ namespace msa {
 			return false;
 		
 		//	size_t localSize = MIN(n, info.maxWorkGroupSize);
-		
-		cl_int err = clEnqueueNDRangeKernel(pOpenCL->getQueue(), clKernel, numDimensions, NULL, globalSize, localSize, 0, NULL, NULL);
+		cl_event WaitEvent = NULL;
+		cl_int err = clEnqueueNDRangeKernel( getQueue(), clKernel, numDimensions, NULL, globalSize, localSize, 0, NULL, Blocking ? &WaitEvent : NULL );
 		assert(err == CL_SUCCESS);
+		if ( err != CL_SUCCESS )
+			return false;
+
+		//	block by waiting for the execute-event
+		if ( Blocking && WaitEvent )
+			err = clWaitForEvents( 1, &WaitEvent );
+
 		return (err == CL_SUCCESS);
 	}
 	

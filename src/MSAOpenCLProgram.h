@@ -15,7 +15,7 @@ namespace msa {
 		bool loadFromFile(string filename,bool isBinary,const char* BuildOptions);
 		bool loadFromSource(string source,const char* sourceLocation,const char* BuildOptions);
 		
-		OpenCLKernel*	loadKernel(string kernelName);
+		OpenCLKernel*	loadKernel(string kernelName,cl_command_queue Queue=NULL);
 		
 		void			getBinary();
 		const string&	getName() const	{	return mName;	}

@@ -10,7 +10,7 @@ namespace msa {
 	bool OpenCLBuffer::initBuffer(int numberOfBytes,
 								  cl_mem_flags memFlags,
 								  void *dataPtr,
-								  bool blockingWrite)
+								  bool blockingWrite,cl_command_queue Queue)
 	{
 		
 		ofLog(OF_LOG_VERBOSE, "OpenCLBuffer::initBuffer");
@@ -37,7 +37,7 @@ namespace msa {
 			return false;
 		
 		if(dataPtr) 
-			if ( !write( dataPtr, 0, numberOfBytes, blockingWrite) )
+			if ( !write( dataPtr, 0, numberOfBytes, blockingWrite, Queue ) )
 				return false;
 
 		return true;
@@ -62,21 +62,27 @@ namespace msa {
 	}
 	
 	
-	bool OpenCLBuffer::read(void *dataPtr, int startOffsetBytes, int numberOfBytes, bool blockingRead) {
-		cl_int err = clEnqueueReadBuffer(pOpenCL->getQueue(), clMemObject, blockingRead, startOffsetBytes, numberOfBytes, dataPtr, 0, NULL, NULL);
+	bool OpenCLBuffer::read(void *dataPtr, int startOffsetBytes, int numberOfBytes, bool blockingRead,cl_command_queue Queue) {
+		if ( !Queue )
+			Queue = OpenCL::currentOpenCL->getQueue();
+		cl_int err = clEnqueueReadBuffer( Queue, clMemObject, blockingRead, startOffsetBytes, numberOfBytes, dataPtr, 0, NULL, NULL);
 		assert(err == CL_SUCCESS);
 		return err == CL_SUCCESS;
 	}
 	
 	
-	bool OpenCLBuffer::write(void *dataPtr, int startOffsetBytes, int numberOfBytes, bool blockingWrite) {
-		cl_int err = clEnqueueWriteBuffer(pOpenCL->getQueue(), clMemObject, blockingWrite, startOffsetBytes, numberOfBytes, dataPtr, 0, NULL, NULL);
+	bool OpenCLBuffer::write(void *dataPtr, int startOffsetBytes, int numberOfBytes, bool blockingWrite,cl_command_queue Queue) {
+		if ( !Queue )
+			Queue = OpenCL::currentOpenCL->getQueue();
+		cl_int err = clEnqueueWriteBuffer( Queue, clMemObject, blockingWrite, startOffsetBytes, numberOfBytes, dataPtr, 0, NULL, NULL);
 		assert(err == CL_SUCCESS);
 		return err == CL_SUCCESS;
 	}
 	
-	bool OpenCLBuffer::copyFrom(OpenCLBuffer &srcBuffer, int srcOffsetBytes, int dstOffsetBytes, int numberOfBytes) {
-		cl_int err = clEnqueueCopyBuffer(pOpenCL->getQueue(), srcBuffer.getCLMem(), clMemObject, srcOffsetBytes, dstOffsetBytes, numberOfBytes, 0, NULL, NULL);
+	bool OpenCLBuffer::copyFrom(OpenCLBuffer &srcBuffer, int srcOffsetBytes, int dstOffsetBytes, int numberOfBytes,cl_command_queue Queue) {
+		if ( !Queue )
+			Queue = OpenCL::currentOpenCL->getQueue();
+		cl_int err = clEnqueueCopyBuffer( Queue, srcBuffer.getCLMem(), clMemObject, srcOffsetBytes, dstOffsetBytes, numberOfBytes, 0, NULL, NULL);
 		assert(err == CL_SUCCESS);
 		return err == CL_SUCCESS;
 	}

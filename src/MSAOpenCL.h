@@ -20,12 +20,14 @@ namespace msa {
 		static OpenCL *currentOpenCL;
 		
 		// initializes openCL with the passed in device (leave empty for default)
-		void	setup(int clDeviceType = CL_DEVICE_TYPE_GPU, int numDevices = 1);
-		void	setupFromOpenGL();
+		bool	setup(int clDeviceType = CL_DEVICE_TYPE_GPU);
+		bool	setupFromOpenGL();
 		
+		bool				isInitialised() const	{	return isSetup && mDevices.size() && mQueues.size();	}
 		cl_device_id&		getDevice();
 		cl_context&			getContext();
 		cl_command_queue&	getQueue();
+		cl_command_queue	createNewQueue();	//	create extra queue
 		
 		
 		// doesn't return until all commands in the queue have been sent
@@ -44,7 +46,8 @@ namespace msa {
 		
 		// specify a kernel to load from the specified program
 		// returns pointer to the kernel 
-		OpenCLKernel*	loadKernel(string kernelName,OpenCLProgram& program);
+		OpenCLKernel*	loadKernel(string kernelName,OpenCLProgram& program,cl_command_queue Queue=NULL);
+		void			deleteKernel(OpenCLKernel& Kernel);
 		
 		
 		
@@ -54,13 +57,14 @@ namespace msa {
 		OpenCLBuffer*	createBuffer(int numberOfBytes,
 									 cl_mem_flags memFlags = CL_MEM_READ_WRITE,
 									 void *dataPtr = NULL,
-									 bool blockingWrite = CL_FALSE);
+									 bool blockingWrite = CL_FALSE,cl_command_queue Queue=NULL);
 		
 		// create buffer from the GL Object - e.g. VBO (they share memory space on device)
 		// parameters with default values can be omited
 		OpenCLBuffer*	createBufferFromGLObject(GLuint glBufferObject,
 												 cl_mem_flags memFlags = CL_MEM_READ_WRITE);
 		
+		void			deleteBuffer(OpenCLMemoryObject& Buffer);
 		
 		
 		// create OpenCL image memory objects
@@ -103,15 +107,6 @@ namespace msa {
 										  void *dataPtr = NULL,
 										  bool blockingWrite = CL_FALSE);
 		
-				
-		vector<OpenCLProgram*>	getPrograms() {
-			return programs;
-		}
-		
-		vector<OpenCLKernel*>	getKernels() {
-			return kernels;
-		}
-		
 		string getInfoAsString();
 		static const char*	getErrorAsString(cl_int err);
 		
@@ -151,16 +146,20 @@ namespace msa {
 		
 	protected:	
 		
-		cl_device_id					clDevice;
+		vector<cl_device_id>			mDevices;
 		cl_context						clContext;
-		cl_command_queue				clQueue;
-		
+		vector<cl_command_queue>		mQueues;
+
+		ofMutex							mMemObjectsLock;
+		ofMutex							mKernelsLock;
+		ofMutex							mProgramsLock;
+
 		vector<OpenCLProgram*>			programs;	
 		vector<OpenCLKernel*>			kernels;
 		vector<OpenCLMemoryObject*>		memObjects;
 		bool							isSetup;
 		
-		int createDevice(int clDeviceType, int numDevices);
+		bool createDevice(int clDeviceType);
 		void createQueue();
 	};
 	
