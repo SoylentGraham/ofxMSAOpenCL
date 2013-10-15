@@ -216,10 +216,10 @@ namespace msa {
 	}
 	
 	
-	OpenCLImage* OpenCL::createImage2D(int width, int height, cl_channel_order imageChannelOrder, cl_channel_type imageChannelDataType, cl_mem_flags memFlags, void *dataPtr, bool blockingWrite) {
+	OpenCLImage* OpenCL::createImage2D(cl_command_queue Queue,int width, int height, cl_channel_order imageChannelOrder, cl_channel_type imageChannelDataType, cl_mem_flags memFlags, void *dataPtr, bool blockingWrite) {
 		ofLog(OF_LOG_VERBOSE, string() + __FUNCTION__ );
 		assert( isInitialised() );
-		return createImage3D(width, height, 1, imageChannelOrder, imageChannelDataType, memFlags, dataPtr, blockingWrite);
+		return createImage3D(Queue,width, height, 1, imageChannelOrder, imageChannelDataType, memFlags, dataPtr, blockingWrite);
 	}
 	
 	
@@ -234,10 +234,10 @@ namespace msa {
 		return clImage;
 	}
 	
-	OpenCLImage* OpenCL::createImageWithTexture(int width, int height, int glType, cl_mem_flags memFlags) {
+	OpenCLImage* OpenCL::createImageWithTexture(cl_command_queue Queue,int width, int height, int glType, cl_mem_flags memFlags) {
 		assert( isInitialised() );
 		OpenCLImage *clImage = new OpenCLImage();
-		clImage->initWithTexture(width, height, glType, memFlags);
+		clImage->initWithTexture(Queue,width, height, glType, memFlags);
 		
 		ofMutex::ScopedLock Lock(mMemObjectsLock);
 		memObjects.push_back(clImage);
@@ -245,10 +245,10 @@ namespace msa {
 	}
 	
 	
-	OpenCLImage* OpenCL::createImage3D(int width, int height, int depth, cl_channel_order imageChannelOrder, cl_channel_type imageChannelDataType, cl_mem_flags memFlags, void *dataPtr, bool blockingWrite) {
+	OpenCLImage* OpenCL::createImage3D(cl_command_queue Queue,int width, int height, int depth, cl_channel_order imageChannelOrder, cl_channel_type imageChannelDataType, cl_mem_flags memFlags, void *dataPtr, bool blockingWrite) {
 		assert( isInitialised() );
 		OpenCLImage *clImage = new OpenCLImage();
-		clImage->initWithoutTexture(width, height, depth, imageChannelOrder, imageChannelDataType, memFlags, dataPtr, blockingWrite);
+		clImage->initWithoutTexture(Queue,width, height, depth, imageChannelOrder, imageChannelDataType, memFlags, dataPtr, blockingWrite);
 	
 		ofMutex::ScopedLock Lock(mMemObjectsLock);
 		memObjects.push_back(clImage);
@@ -463,6 +463,7 @@ namespace msa {
 			assert(false);
 			return;
 		}
+		ofMutex::ScopedLock lock(mQueuesLock);
 		mQueues.push_back( Queue );
 		
 		isSetup = true;
@@ -472,7 +473,13 @@ namespace msa {
 	cl_command_queue OpenCL::createNewQueue() {
 		ofLog(OF_LOG_VERBOSE, string() + __FUNCTION__ );
 		assert( isInitialised() );
-		cl_command_queue Queue = clCreateCommandQueue(clContext, getDevice(), 0, NULL);
+		cl_int Err = CL_SUCCESS;
+		cl_command_queue Queue = clCreateCommandQueue(clContext, getDevice(), 0, &Err );
+		if ( !Queue || Err != CL_SUCCESS )
+			return NULL;
+
+		ofMutex::ScopedLock lock(mQueuesLock);
+		mQueues.push_back( Queue );
 		return Queue;
 	}
 	

@@ -9,7 +9,7 @@ namespace msa {
 	}
 	
 	
-	bool OpenCLImage::initWithoutTexture(int w,
+	bool OpenCLImage::initWithoutTexture(cl_command_queue Queue,int w,
 										 int h,
 										 int d,
 										 cl_channel_order imageChannelOrder,
@@ -56,7 +56,7 @@ namespace msa {
 		bool WriteSuccess = true;
 		if(dataPtr) 
 		{
-			WriteSuccess = write(dataPtr, blockingWrite);
+			WriteSuccess = write(Queue,dataPtr, blockingWrite);
 		}
 		
 		if(texture) 
@@ -105,7 +105,7 @@ namespace msa {
 	
 	
 	
-	bool OpenCLImage::initWithTexture(int w,
+	bool OpenCLImage::initWithTexture(cl_command_queue Queue,int w,
 									  int h,
 									  int glTypeInternal,
 									  cl_mem_flags memFlags)
@@ -121,7 +121,7 @@ namespace msa {
 		texture->allocate(w, h, glTypeInternal);
 		if ( !initFromTexture(*texture, memFlags, 0) )
 			return false;
-		reset();
+		reset(Queue);
 		return true;
 	}
 	
@@ -149,41 +149,50 @@ namespace msa {
 		memoryObjectInit();
 	}
 	
-	void OpenCLImage::reset() {
+	void OpenCLImage::reset(cl_command_queue Queue) {
 		ofLog(OF_LOG_VERBOSE, "OpenCLImage::reset()");
 		int numElements = width * height * 4; // TODO, make real
 		if(texture->getTextureData().pixelType == GL_FLOAT) 
 			numElements *= sizeof(cl_float);
 		char *data = new char[numElements];
 		memset(data, 0, numElements);
-		write(data, true);
+		write(Queue,data, true);
 		delete []data;
 	}
 	
 	
-	bool OpenCLImage::read(void *dataPtr, bool blockingRead, size_t *pOrigin, size_t *pRegion, size_t rowPitch, size_t slicePitch) {
+	bool OpenCLImage::read(cl_command_queue Queue,void *dataPtr, bool blockingRead, size_t *pOrigin, size_t *pRegion, size_t rowPitch, size_t slicePitch) {
+		if ( !Queue )
+			Queue = OpenCL::currentOpenCL->getQueue();
 		if(pOrigin == NULL) pOrigin = origin;
 		if(pRegion == NULL) pRegion = region;
 		
-		cl_int err = clEnqueueReadImage(pOpenCL->getQueue(), clMemObject, blockingRead, pOrigin, pRegion, rowPitch, slicePitch, dataPtr, 0, NULL, NULL);
+		ofMutex::ScopedLock Lock(OpenCLMemoryObject::gReleaseLock);
+		cl_int err = clEnqueueReadImage( Queue, clMemObject, blockingRead, pOrigin, pRegion, rowPitch, slicePitch, dataPtr, 0, NULL, NULL);
 		return (err==CL_SUCCESS);
 	}
 	
 	
-	bool OpenCLImage::write(void *dataPtr, bool blockingWrite, size_t *pOrigin, size_t *pRegion, size_t rowPitch, size_t slicePitch) {
+	bool OpenCLImage::write(cl_command_queue Queue,void *dataPtr, bool blockingWrite, size_t *pOrigin, size_t *pRegion, size_t rowPitch, size_t slicePitch) {
+		if ( !Queue )
+			Queue = OpenCL::currentOpenCL->getQueue();
 		if(pOrigin == NULL) pOrigin = origin;
 		if(pRegion == NULL) pRegion = region;
 		
-		cl_int err = clEnqueueWriteImage(pOpenCL->getQueue(), clMemObject, blockingWrite, pOrigin, pRegion, rowPitch, slicePitch, dataPtr, 0, NULL, NULL);
+		ofMutex::ScopedLock Lock(OpenCLMemoryObject::gReleaseLock);
+		cl_int err = clEnqueueWriteImage( Queue, clMemObject, blockingWrite, pOrigin, pRegion, rowPitch, slicePitch, dataPtr, 0, NULL, NULL);
 		return (err==CL_SUCCESS);
 	}
 	
-	bool OpenCLImage::copyFrom(OpenCLImage &srcImage, size_t *pSrcOrigin, size_t *pDstOrigin, size_t *pRegion) {
+	bool OpenCLImage::copyFrom(cl_command_queue Queue,OpenCLImage &srcImage, size_t *pSrcOrigin, size_t *pDstOrigin, size_t *pRegion) {
+		if ( !Queue )
+			Queue = OpenCL::currentOpenCL->getQueue();
 		if(pSrcOrigin == NULL) pSrcOrigin = origin;
 		if(pDstOrigin == NULL) pDstOrigin = origin;
 		if(pRegion == NULL) pRegion = region;
 		
-		cl_int err = clEnqueueCopyImage(pOpenCL->getQueue(), srcImage.getCLMem(), clMemObject, pSrcOrigin, pDstOrigin, pRegion, 0, NULL, NULL);
+		ofMutex::ScopedLock Lock(OpenCLMemoryObject::gReleaseLock);
+		cl_int err = clEnqueueCopyImage( Queue, srcImage.getCLMem(), clMemObject, pSrcOrigin, pDstOrigin, pRegion, 0, NULL, NULL);
 		return (err==CL_SUCCESS);
 	}
 	

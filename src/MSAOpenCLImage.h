@@ -32,7 +32,7 @@ namespace msa {
 		// Image is not linked to an OpenGL texture
 		// for 2D image, leave depth as 1
 		// parameters with default values can be omited
-		bool initWithoutTexture(int width,
+		bool initWithoutTexture(cl_command_queue Queue,int width,
 								int height,
 								int depth = 1,
 								cl_channel_order imageChannelOrder = CL_RGBA,
@@ -52,7 +52,7 @@ namespace msa {
 		
 		// create both a 2D Image AND an ofTexture at the same time (they share memory space on device)
 		// parameters with default values can be omited
-		bool initWithTexture(int width,
+		bool initWithTexture(cl_command_queue Queue,int width,
 							 int height,
 							 int glTypeInternal = GL_RGBA,
 							 cl_mem_flags memFlags = CL_MEM_READ_WRITE);
@@ -62,7 +62,7 @@ namespace msa {
 		
 		// read from device memory, into main memoy (into dataPtr)
 		// if origin and/or region is NULL, entire image is read
-		bool read(void *dataPtr,
+		bool read(cl_command_queue Queue,void *dataPtr,
 				  bool blockingRead = CL_TRUE,
 				  size_t *pOrigin = NULL,
 				  size_t *pRegion = NULL,
@@ -71,7 +71,7 @@ namespace msa {
 		
 		// write from main memory (dataPtr), into device memory
 		// if origin and/or region is NULL, entire image is written
-		bool write(void *dataPtr,
+		bool write(cl_command_queue Queue,void *dataPtr,
 				   bool blockingWrite = CL_FALSE,
 				   size_t *pOrigin = NULL,
 				   size_t *pRegion = NULL,
@@ -81,7 +81,7 @@ namespace msa {
 		
 		// copy data from another image in device memory
 		// if origin and/or region is NULL, entire image is written
-		bool copyFrom(OpenCLImage &srcImage,
+		bool copyFrom(cl_command_queue Queue,OpenCLImage &srcImage,
 					  size_t *pSrcOrigin = NULL, 
 					  size_t *pDstOrigin = NULL, 
 					  size_t *pRegion = NULL);
@@ -100,7 +100,7 @@ namespace msa {
 		void draw(float x, float y, float w, float h);
 		
 		
-		void reset();
+		void reset(cl_command_queue Queue);
 		
 		
 		float getWidth() {

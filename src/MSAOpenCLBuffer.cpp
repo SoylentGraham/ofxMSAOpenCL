@@ -65,6 +65,7 @@ namespace msa {
 	bool OpenCLBuffer::read(void *dataPtr, int startOffsetBytes, int numberOfBytes, bool blockingRead,cl_command_queue Queue) {
 		if ( !Queue )
 			Queue = OpenCL::currentOpenCL->getQueue();
+		ofMutex::ScopedLock Lock(OpenCLMemoryObject::gReleaseLock);
 		cl_int err = clEnqueueReadBuffer( Queue, clMemObject, blockingRead, startOffsetBytes, numberOfBytes, dataPtr, 0, NULL, NULL);
 		assert(err == CL_SUCCESS);
 		return err == CL_SUCCESS;
@@ -74,6 +75,7 @@ namespace msa {
 	bool OpenCLBuffer::write(void *dataPtr, int startOffsetBytes, int numberOfBytes, bool blockingWrite,cl_command_queue Queue) {
 		if ( !Queue )
 			Queue = OpenCL::currentOpenCL->getQueue();
+		ofMutex::ScopedLock Lock(OpenCLMemoryObject::gReleaseLock);
 		cl_int err = clEnqueueWriteBuffer( Queue, clMemObject, blockingWrite, startOffsetBytes, numberOfBytes, dataPtr, 0, NULL, NULL);
 		assert(err == CL_SUCCESS);
 		return err == CL_SUCCESS;

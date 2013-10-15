@@ -2,17 +2,23 @@
 #include "MSAOpenCLMemoryObject.h"
 
 namespace msa { 
-	
-	OpenCLMemoryObject::OpenCLMemoryObject() {
+
+	ofMutex OpenCLMemoryObject::gReleaseLock;
+
+	OpenCLMemoryObject::OpenCLMemoryObject() :
+		pOpenCL		( OpenCL::currentOpenCL ),
+		clMemObject	( NULL )
+	{
 		ofLog(OF_LOG_VERBOSE, "OpenCLMemoryObject::OpenCLMemoryObject");
-		pOpenCL = NULL;
-		clMemObject = NULL;
 	}
-	
 	
 	OpenCLMemoryObject::~OpenCLMemoryObject() {
 		ofLog(OF_LOG_VERBOSE, "OpenCLMemoryObject::~OpenCLMemoryObject");
-		if(clMemObject) clReleaseMemObject(clMemObject);
+		if(clMemObject) 
+		{
+			ofMutex::ScopedLock Lock(OpenCLMemoryObject::gReleaseLock);
+			clReleaseMemObject(clMemObject);
+		}
 	}
 	
 	
@@ -22,6 +28,5 @@ namespace msa {
 	
 	void OpenCLMemoryObject::memoryObjectInit() {
 		ofLog(OF_LOG_VERBOSE, "OpenCLMemoryObject::memoryObjectInit");
-		pOpenCL = OpenCL::currentOpenCL;
 	}
 }

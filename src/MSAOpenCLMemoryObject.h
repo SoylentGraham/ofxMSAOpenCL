@@ -24,7 +24,9 @@ namespace msa {
 		}
 		
 		
-		
+	public:
+		static ofMutex	gReleaseLock;
+
 	protected:
 		OpenCLMemoryObject();
 		cl_mem		clMemObject;

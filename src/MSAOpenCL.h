@@ -73,7 +73,7 @@ namespace msa {
 		// create a 2D Image with given properties
 		// Image is not linked to an OpenGL texture
 		// parameters with default values can be omited
-		OpenCLImage*		createImage2D(int width,
+		OpenCLImage*		createImage2D(cl_command_queue Queue,int width,
 										  int height,
 										  cl_channel_order imageChannelOrder = CL_RGBA,
 										  cl_channel_type imageChannelDataType = CL_FLOAT,
@@ -90,7 +90,7 @@ namespace msa {
 		
 		// create both a 2D Image AND an ofTexture at the same time (they share memory space on device)
 		// parameters with default values can be omited
-		OpenCLImage*		createImageWithTexture(int width,
+		OpenCLImage*		createImageWithTexture(cl_command_queue Queue,int width,
 												   int height,
 												   int glType = GL_RGBA,
 												   cl_mem_flags memFlags = CL_MEM_READ_WRITE);
@@ -98,7 +98,7 @@ namespace msa {
 		
 		
 		// parameters with default values can be omited
-		OpenCLImage*		createImage3D(int width,
+		OpenCLImage*		createImage3D(cl_command_queue Queue,int width,
 										  int height,
 										  int depth,
 										  cl_channel_order imageChannelOrder = CL_RGBA,
@@ -153,6 +153,7 @@ namespace msa {
 		ofMutex							mMemObjectsLock;
 		ofMutex							mKernelsLock;
 		ofMutex							mProgramsLock;
+		ofMutex							mQueuesLock;
 
 		vector<OpenCLProgram*>			programs;	
 		vector<OpenCLKernel*>			kernels;
