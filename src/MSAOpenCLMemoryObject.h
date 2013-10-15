@@ -9,6 +9,8 @@
 
 #include "ofMain.h"
 
+//#define ENABLE_OPENCL_RELEASE_LOCK
+
 namespace msa { 
 	class OpenCL;
 	
@@ -25,7 +27,9 @@ namespace msa {
 		
 		
 	public:
+#if defined(ENABLE_OPENCL_RELEASE_LOCK)
 		static ofMutex	gReleaseLock;
+#endif
 
 	protected:
 		OpenCLMemoryObject();

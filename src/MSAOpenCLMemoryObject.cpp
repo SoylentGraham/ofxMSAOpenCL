@@ -3,7 +3,9 @@
 
 namespace msa { 
 
+#if defined(ENABLE_OPENCL_RELEASE_LOCK)
 	ofMutex OpenCLMemoryObject::gReleaseLock;
+#endif
 
 	OpenCLMemoryObject::OpenCLMemoryObject() :
 		pOpenCL		( OpenCL::currentOpenCL ),
@@ -16,7 +18,9 @@ namespace msa {
 		ofLog(OF_LOG_VERBOSE, "OpenCLMemoryObject::~OpenCLMemoryObject");
 		if(clMemObject) 
 		{
+#if defined(ENABLE_OPENCL_RELEASE_LOCK)
 			ofMutex::ScopedLock Lock(OpenCLMemoryObject::gReleaseLock);
+#endif
 			clReleaseMemObject(clMemObject);
 		}
 	}

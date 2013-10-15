@@ -167,7 +167,9 @@ namespace msa {
 		if(pOrigin == NULL) pOrigin = origin;
 		if(pRegion == NULL) pRegion = region;
 		
+#if defined(ENABLE_OPENCL_RELEASE_LOCK)
 		ofMutex::ScopedLock Lock(OpenCLMemoryObject::gReleaseLock);
+#endif
 		cl_int err = clEnqueueReadImage( Queue, clMemObject, blockingRead, pOrigin, pRegion, rowPitch, slicePitch, dataPtr, 0, NULL, NULL);
 		return (err==CL_SUCCESS);
 	}
@@ -179,7 +181,9 @@ namespace msa {
 		if(pOrigin == NULL) pOrigin = origin;
 		if(pRegion == NULL) pRegion = region;
 		
+#if defined(ENABLE_OPENCL_RELEASE_LOCK)
 		ofMutex::ScopedLock Lock(OpenCLMemoryObject::gReleaseLock);
+#endif
 		cl_int err = clEnqueueWriteImage( Queue, clMemObject, blockingWrite, pOrigin, pRegion, rowPitch, slicePitch, dataPtr, 0, NULL, NULL);
 		return (err==CL_SUCCESS);
 	}
@@ -191,7 +195,9 @@ namespace msa {
 		if(pDstOrigin == NULL) pDstOrigin = origin;
 		if(pRegion == NULL) pRegion = region;
 		
+#if defined(ENABLE_OPENCL_RELEASE_LOCK)
 		ofMutex::ScopedLock Lock(OpenCLMemoryObject::gReleaseLock);
+#endif
 		cl_int err = clEnqueueCopyImage( Queue, srcImage.getCLMem(), clMemObject, pSrcOrigin, pDstOrigin, pRegion, 0, NULL, NULL);
 		return (err==CL_SUCCESS);
 	}
