@@ -49,6 +49,11 @@ namespace msa {
 				   int numberOfBytes,
 				   bool blockingWrite,cl_command_queue Queue=NULL);
 		
+		bool writeAsync(void *dataPtr,
+				   int startOffsetBytes,
+				   int numberOfBytes,
+				   cl_event* Event,cl_command_queue Queue=NULL);
+		
 		
 		// copy data from another object on device memory
 		bool copyFrom(OpenCLBuffer &srcBuffer,

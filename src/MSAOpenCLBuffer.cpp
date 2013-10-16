@@ -85,6 +85,18 @@ namespace msa {
 		return err == CL_SUCCESS;
 	}
 	
+	bool OpenCLBuffer::writeAsync(void *dataPtr, int startOffsetBytes, int numberOfBytes,cl_event* Event,cl_command_queue Queue) {
+		if ( !Queue )
+			Queue = OpenCL::currentOpenCL->getQueue();
+#if defined(ENABLE_OPENCL_RELEASE_LOCK)
+		ofMutex::ScopedLock Lock(OpenCLMemoryObject::gReleaseLock);
+#endif
+		bool blockingWrite = false;
+		cl_int err = clEnqueueWriteBuffer( Queue, clMemObject, blockingWrite, startOffsetBytes, numberOfBytes, dataPtr, 0, NULL, Event );
+		assert(err == CL_SUCCESS);
+		return err == CL_SUCCESS;
+	}
+	
 	bool OpenCLBuffer::copyFrom(OpenCLBuffer &srcBuffer, int srcOffsetBytes, int dstOffsetBytes, int numberOfBytes,cl_command_queue Queue) {
 		if ( !Queue )
 			Queue = OpenCL::currentOpenCL->getQueue();
