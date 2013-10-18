@@ -20,7 +20,7 @@ namespace msa {
 		friend class OpenCLProgram;
 		
 	public:
-		
+		OpenCLKernel(OpenCL& Parent,cl_kernel Kernel,cl_command_queue Queue,string Name);
 		~OpenCLKernel();
 		
 		// assign buffer to arguments
@@ -31,17 +31,11 @@ namespace msa {
 		template<class T>
 		bool setArg(int argNumber, T &arg){
 			//		ofLog(OF_LOG_VERBOSE, "OpenCLKernel::setArg " + name + ": " + ofToString(argNumber));	
-			assert(clKernel);
-			if ( !clKernel )
+			assert( mKernel );
+			if ( !mKernel )
 				return false;
 			
-			cl_int err  = clSetKernelArg(clKernel, argNumber, sizeof(T), &arg);
-			assert(err != CL_INVALID_KERNEL);
-			assert(err != CL_INVALID_ARG_INDEX);
-			assert(err != CL_INVALID_ARG_VALUE);
-			assert(err != CL_INVALID_MEM_OBJECT);
-			assert(err != CL_INVALID_SAMPLER);
-			assert(err != CL_INVALID_ARG_SIZE);
+			cl_int err  = clSetKernelArg( mKernel, argNumber, sizeof(T), &arg);
 			assert(err == CL_SUCCESS);
 			return (err==CL_SUCCESS);
 		}
@@ -56,16 +50,16 @@ namespace msa {
 		bool	run2D(bool Blocking,size_t globalSizeX, size_t globalSizeY, size_t localSizeX = 0, size_t localSizeY = 0);
 		bool	run3D(bool Blocking,size_t globalSizeX, size_t globalSizeY, size_t globalSizeZ, size_t localSizeX = 0, size_t localSizeY = 0, size_t localSizeZ = 0);
 		
-		cl_kernel& getCLKernel();
-		string getName();
-		cl_command_queue	getQueue()	{	return mQueue;	}
+		cl_kernel&			getCLKernel()	{	return mKernel;	}
+		const string&		getName() const	{	return mName;	}
+		cl_command_queue	getQueue()		{	return mQueue;	}
 
 	protected:
-		string			name;
-		OpenCL*		pOpenCL;
-		cl_kernel		clKernel;
+		string				mName;
+		cl_kernel			mKernel;
 		cl_command_queue	mQueue;
-		
-		OpenCLKernel(OpenCL *pOpenCL, cl_kernel clKernel,cl_command_queue Queue,string name);
+
+	public:
+		OpenCL&				mParent;
 	};
 }

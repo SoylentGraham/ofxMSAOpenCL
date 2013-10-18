@@ -3,9 +3,11 @@
 
 namespace msa {
 	
-	OpenCLImage::OpenCLImage() {
+	OpenCLImage::OpenCLImage(OpenCL& Parent) :
+		mParent	( Parent ),
+		texture	( NULL )
+	{
 		ofLog(OF_LOG_VERBOSE, "OpenCLImage::OpenCLImage");
-		texture = NULL;
 	}
 	
 	
@@ -37,9 +39,9 @@ namespace msa {
 		}
 		
 		if(depth == 1) {
-			clMemObject = clCreateImage2D(pOpenCL->getContext(), memFlags, &imageFormat, width, height, image_row_pitch, memFlags & CL_MEM_USE_HOST_PTR ? dataPtr : NULL, &err);
+			clMemObject = clCreateImage2D( mParent.getContext(), memFlags, &imageFormat, width, height, image_row_pitch, memFlags & CL_MEM_USE_HOST_PTR ? dataPtr : NULL, &err);
 		} else {
-			clMemObject = clCreateImage3D(pOpenCL->getContext(), memFlags, &imageFormat, width, height, depth, image_row_pitch, image_slice_pitch, memFlags & CL_MEM_USE_HOST_PTR ? dataPtr : NULL, &err);
+			clMemObject = clCreateImage3D( mParent.getContext(), memFlags, &imageFormat, width, height, depth, image_row_pitch, image_slice_pitch, memFlags & CL_MEM_USE_HOST_PTR ? dataPtr : NULL, &err);
 		}
 		assert(err != CL_INVALID_CONTEXT);
 		assert(err != CL_INVALID_VALUE);
@@ -145,8 +147,6 @@ namespace msa {
 		region[2] = depth;
 		
 		ofLog(OF_LOG_VERBOSE, "OpenCLImage::init " + ofToString(width) + ", " + ofToString(height) + ", " + ofToString(depth));
-		
-		memoryObjectInit();
 	}
 	
 	void OpenCLImage::reset(cl_command_queue Queue) {
@@ -162,8 +162,9 @@ namespace msa {
 	
 	
 	bool OpenCLImage::read(cl_command_queue Queue,void *dataPtr, bool blockingRead, size_t *pOrigin, size_t *pRegion, size_t rowPitch, size_t slicePitch) {
+		assert( Queue );
 		if ( !Queue )
-			Queue = OpenCL::currentOpenCL->getQueue();
+			return false;
 		if(pOrigin == NULL) pOrigin = origin;
 		if(pRegion == NULL) pRegion = region;
 		
@@ -176,8 +177,9 @@ namespace msa {
 	
 	
 	bool OpenCLImage::write(cl_command_queue Queue,void *dataPtr, bool blockingWrite, size_t *pOrigin, size_t *pRegion, size_t rowPitch, size_t slicePitch) {
+		assert( Queue );
 		if ( !Queue )
-			Queue = OpenCL::currentOpenCL->getQueue();
+			return false;
 		if(pOrigin == NULL) pOrigin = origin;
 		if(pRegion == NULL) pRegion = region;
 		
@@ -189,8 +191,9 @@ namespace msa {
 	}
 	
 	bool OpenCLImage::copyFrom(cl_command_queue Queue,OpenCLImage &srcImage, size_t *pSrcOrigin, size_t *pDstOrigin, size_t *pRegion) {
+		assert( Queue );
 		if ( !Queue )
-			Queue = OpenCL::currentOpenCL->getQueue();
+			return false;
 		if(pSrcOrigin == NULL) pSrcOrigin = origin;
 		if(pDstOrigin == NULL) pDstOrigin = origin;
 		if(pRegion == NULL) pRegion = region;

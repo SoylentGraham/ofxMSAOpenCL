@@ -8,7 +8,6 @@ namespace msa {
 #endif
 
 	OpenCLMemoryObject::OpenCLMemoryObject() :
-		pOpenCL		( OpenCL::currentOpenCL ),
 		clMemObject	( NULL )
 	{
 		ofLog(OF_LOG_VERBOSE, "OpenCLMemoryObject::OpenCLMemoryObject");
@@ -23,14 +22,5 @@ namespace msa {
 #endif
 			clReleaseMemObject(clMemObject);
 		}
-	}
-	
-	
-	cl_mem &OpenCLMemoryObject::getCLMem() {
-		return clMemObject;
-	}
-	
-	void OpenCLMemoryObject::memoryObjectInit() {
-		ofLog(OF_LOG_VERBOSE, "OpenCLMemoryObject::memoryObjectInit");
 	}
 }

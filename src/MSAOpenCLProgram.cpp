@@ -4,24 +4,25 @@
 
 namespace msa { 
 	
-	char *OpenCL_textFileRead(char *fn);
 	
-	
-	OpenCLProgram::OpenCLProgram() {
-		ofLog(OF_LOG_VERBOSE, "OpenCLProgram::OpenCLProgram");
-		this->pOpenCL = pOpenCL;
-		pOpenCL = NULL;
-		clProgram = NULL;
+	OpenCLProgram::OpenCLProgram(OpenCL& Parent) :
+		mParent		( Parent ),
+		mProgram	( NULL )
+	{
+		ofLog(OF_LOG_VERBOSE, __FUNCTION__ );
 	}
 	
 	
-	OpenCLProgram::~OpenCLProgram() {
-		ofLog(OF_LOG_VERBOSE, "OpenCLProgram::~OpenCLProgram");
-		//	clReleaseProgram(clProgram);		// this crashes it for some reason
+	OpenCLProgram::~OpenCLProgram() 
+	{
+		ofLog(OF_LOG_VERBOSE, __FUNCTION__ );
+		if ( mProgram )
+			clReleaseProgram(mProgram);
 	}
 	
 	
-	bool OpenCLProgram::loadFromFile(std::string filename, bool isBinary,const char* BuildOptions) { 
+	bool OpenCLProgram::loadFromFile(std::string filename, bool isBinary,const char* BuildOptions) 
+	{
 		ofLog(OF_LOG_VERBOSE, "OpenCLProgram::loadFromFile " + filename + ", isBinary: " + ofToString(isBinary) + ", buildoptions: " + BuildOptions );
 		
 		string fullPath = ofToDataPath(filename.c_str());
@@ -32,17 +33,17 @@ namespace msa {
 			return false;
 			
 		} else {
-			
-			char *source = OpenCL_textFileRead( const_cast<char*>(fullPath.c_str()) );
-			if(source == NULL) {
+			//	http://stackoverflow.com/questions/2602013/read-whole-ascii-file-into-c-stdstring
+			//std::string FileContents( ofBufferFromFile( fullPath ).getText() );
+			std::string FileContents = ofBufferFromFile( fullPath );
+
+			if ( !FileContents.size() )
+			{
 				ofLog(OF_LOG_ERROR, "Error loading program file: " + fullPath);
 				return false;
 			}
 			
-			bool Success = loadFromSource( source, filename.c_str(), BuildOptions );
-			
-			free(source);
-
+			bool Success = loadFromSource( FileContents, filename.c_str(), BuildOptions );
 			return Success;
 		}
 	}
@@ -52,12 +53,14 @@ namespace msa {
 	bool OpenCLProgram::loadFromSource(std::string source,const char* sourceLocation,const char* BuildOptions) {
 		ofLog(OF_LOG_VERBOSE, "OpenCLProgram::loadFromSource ");// + source);
 		
+		assert( !mProgram );
+		if ( mProgram )
+			return false;
+
 		cl_int err;
 		
-		pOpenCL = OpenCL::currentOpenCL;
-		
 		const char* csource = source.c_str();
-		clProgram = clCreateProgramWithSource(pOpenCL->getContext(), 1, &csource, NULL, &err);
+		mProgram = clCreateProgramWithSource( mParent.getContext(), 1, &csource, NULL, &err);
 		
 		return build( sourceLocation ? sourceLocation : "(From source)", BuildOptions );
 	} 
@@ -65,15 +68,18 @@ namespace msa {
 	
 	OpenCLKernel* OpenCLProgram::loadKernel(string kernelName,cl_command_queue Queue) {
 		ofLog(OF_LOG_VERBOSE, "OpenCLProgram::loadKernel " + kernelName);
-		if ( !clProgram )
+		assert( mProgram );
+		if ( !mProgram )
 			return NULL;
 		
+		assert( Queue );
 		if ( !Queue )
-			Queue = pOpenCL->getQueue();
+			return false;
 
 		cl_int err = CL_SUCCESS;
-		
-		OpenCLKernel *k = new OpenCLKernel(pOpenCL, clCreateKernel(clProgram, kernelName.c_str(), &err), Queue, kernelName);
+	
+		cl_kernel Kernel = clCreateKernel( mProgram, kernelName.c_str(), &err );
+		OpenCLKernel *k = new OpenCLKernel( mParent, Kernel, Queue, kernelName );
 		
 		if(err != CL_SUCCESS) {
 			ofLog(OF_LOG_ERROR, string("Error creating kernel: ") + kernelName + " [" + OpenCL::getErrorAsString(err) + "]" );
@@ -87,9 +93,14 @@ namespace msa {
 	
 	void OpenCLProgram::getBinary()
 	{
+		/*
+		//	gr: if this is to be used, it needs an overhaul
+		if ( !mProgram )
+			return;
+
 		cl_uint program_num_devices;
 		cl_int err;
-		err = clGetProgramInfo(clProgram, CL_PROGRAM_NUM_DEVICES, sizeof(cl_uint), &program_num_devices, NULL);
+		err = clGetProgramInfo( mProgram, CL_PROGRAM_NUM_DEVICES, sizeof(cl_uint), &program_num_devices, NULL);
 		assert(err == CL_SUCCESS);
 		
 		if (program_num_devices == 0) {
@@ -99,7 +110,7 @@ namespace msa {
 		
 		size_t* binaries_sizes = new size_t[program_num_devices];
 		
-		err = clGetProgramInfo(clProgram, CL_PROGRAM_BINARY_SIZES, program_num_devices*sizeof(size_t), binaries_sizes, NULL);
+		err = clGetProgramInfo( mProgram, CL_PROGRAM_BINARY_SIZES, program_num_devices*sizeof(size_t), binaries_sizes, NULL);
 		assert(err = CL_SUCCESS);
 		
 		char **binaries = new char*[program_num_devices];
@@ -121,31 +132,43 @@ namespace msa {
 		
 		delete [] binaries;
 		delete [] binaries_sizes;
+		*/
 	}
 	
 	
-	bool OpenCLProgram::build(const char* ProgramSource,const char* BuildOptions) {
-		if(clProgram == NULL) {
-			ofLog(OF_LOG_ERROR, "Error creating program object.");
+	bool OpenCLProgram::build(const char* ProgramSource,const char* BuildOptions) 
+	{
+		assert( mProgram );
+		if ( !mProgram )
 			return false;
-		}	
 		
 		string Options;
-		string Path = ofToDataPath("",true).c_str();
 
-		//	opencl (amd) requires paths with forward slashes
-		std::replace( Path.begin(), Path.end(), '\\', '/' );
-		Options += "-I \"" + Path + "\" ";
+		//	auto-include path
+		bool IncludePath = true;
+		if ( IncludePath )
+		{
+			string Path = ofToDataPath("",true).c_str();
+
+			//	opencl [amd APP sdk] requires paths with forward slashes [on windows]
+			std::replace( Path.begin(), Path.end(), '\\', '/' );
+			Options += "-I \"" + Path + "\" ";
+		}
+		
 		if ( BuildOptions )
 			Options += BuildOptions;
 	
+		//	build for all our devices
+		cl_device_id Devices[100];
+		int DeviceCount = mParent.GetDevices( Devices );
+
 		string Debug;
 		Debug += "Build OpenCLProgram ";
 		Debug += ProgramSource;
-		Debug += ": (" + Options + ") ";
+		Debug += ": (" + Options + ") for " + ofToString(DeviceCount) + " devices";
 		ofLog(OF_LOG_NOTICE, Debug + "...");
 
-		cl_int err = clBuildProgram(clProgram, 0, NULL, Options.c_str(), NULL, NULL);
+		cl_int err = clBuildProgram( mProgram, DeviceCount, Devices, Options.c_str(), NULL, NULL);
 		
 		if ( err == CL_SUCCESS )
 			Debug += "CL_SUCESS";
@@ -155,56 +178,32 @@ namespace msa {
 		ofLog( (err == CL_SUCCESS) ? OF_LOG_NOTICE : OF_LOG_ERROR, Debug);
 
 		//	get build log size first so we always have errors to display
-		size_t len = 0;
-		int BuildInfoErr = clGetProgramBuildInfo(clProgram, pOpenCL->getDevice(), CL_PROGRAM_BUILD_LOG, 0, NULL, &len );
-		vector<char> buffer( len+1 );
-		BuildInfoErr = clGetProgramBuildInfo(clProgram, pOpenCL->getDevice(), CL_PROGRAM_BUILD_LOG, buffer.size(), &buffer.at(0), NULL );
-		buffer[len] = '\0';
-			
-		if ( len > 1 )
+		for ( int d=0;	d<DeviceCount;	d++ )
 		{
-			//	errors might contain % symbols, which will screw up the va_args system when it tries to parse them...
-			std::replace( buffer.begin(), buffer.end(), '%', '@' );
+			auto DeviceId = Devices[d];
+			auto* pDevice = mParent.GetDevice( DeviceId );
+			std::string DeviceName;
+			if ( pDevice )
+				DeviceName += reinterpret_cast<char*>( &pDevice->mInfo.deviceName[0] );
+			else
+				DeviceName += "<device missing from opencl manager>";
+			size_t len = 0;
+			int BuildInfoErr = clGetProgramBuildInfo( mProgram, DeviceId, CL_PROGRAM_BUILD_LOG, 0, NULL, &len );
+			vector<char> buffer( len+1 );
+			BuildInfoErr = clGetProgramBuildInfo( mProgram, DeviceId, CL_PROGRAM_BUILD_LOG, buffer.size(), &buffer.at(0), NULL );
+			buffer[len] = '\0';
+			
+			if ( len > 1 )
+			{
+				//	errors might contain % symbols, which will screw up the va_args system when it tries to parse them...
+				std::replace( buffer.begin(), buffer.end(), '%', '@' );
 
-			const char* bufferString = &buffer[0];
-			ofLog(OF_LOG_ERROR, bufferString );
-			ofLog( (err == CL_SUCCESS) ? OF_LOG_NOTICE : OF_LOG_ERROR, "\n------------------------------------\n");
-		}
-		return ( err == CL_SUCCESS );
-	}
-	
-	cl_program& OpenCLProgram::getCLProgram(){
-		return clProgram;	
-	}
-	
-	//---------------------------------------------------------
-	// below is from: www.lighthouse3d.com
-	// you may use these functions freely. they are provided as is, and no warranties, either implicit, or explicit are given
-	//---------------------------------------------------------
-	
-	char *OpenCL_textFileRead(char *fn) {
-		
-		FILE *fp;
-		char *content 	= 	NULL;
-		int count		=	0;
-		
-		if (fn != NULL) {
-			fp = fopen(fn,"rt");
-			if (fp != NULL) {
-				
-				fseek(fp, 0, SEEK_END);
-				count = ftell(fp);
-				rewind(fp);
-				
-				if (count > 0) {
-					content = (char *)malloc(sizeof(char) * (count+1));
-					count = fread(content,sizeof(char),count,fp);
-					content[count] = '\0';
-				}
-				fclose(fp);
+				const char* bufferString = &buffer[0];
+				ofLog( (err == CL_SUCCESS) ? OF_LOG_NOTICE : OF_LOG_ERROR, string()+ "Device[" + ofToString(d) + "] " + DeviceName + ":" );
+				ofLog( (err == CL_SUCCESS) ? OF_LOG_NOTICE : OF_LOG_ERROR, bufferString );
+				ofLog( (err == CL_SUCCESS) ? OF_LOG_NOTICE : OF_LOG_ERROR, "\n------------------------------------\n");
 			}
 		}
-		
-		return content;
+		return ( err == CL_SUCCESS );
 	}
 }

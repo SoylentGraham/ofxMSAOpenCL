@@ -3,19 +3,24 @@
 
 namespace msa { 
 	
-	OpenCLKernel::OpenCLKernel(OpenCL* pOpenCL, cl_kernel Kernel,cl_command_queue Queue, string Name) :
-		pOpenCL		( pOpenCL ),
-		name		( Name ),
-		clKernel	( Kernel ),
+	OpenCLKernel::OpenCLKernel(OpenCL& Parent,cl_kernel Kernel,cl_command_queue Queue,string Name) :
+		mParent		( Parent ),
+		mName		( Name ),
+		mKernel		( Kernel ),
 		mQueue		( Queue )
 	{
-		ofLog(OF_LOG_VERBOSE, "OpenCLKernel::OpenCLKernel " + ofToString((int)pOpenCL) + ", " + name);
+		ofLog(OF_LOG_VERBOSE, string() + __FUNCTION__ + mName);
+		assert( mKernel );
+		assert( mQueue );
 	}
 	
 	
 	OpenCLKernel::~OpenCLKernel() {
-		ofLog(OF_LOG_VERBOSE, "OpenCLKernel::~OpenCLKernel " + name);
-		clReleaseKernel(clKernel);
+		ofLog(OF_LOG_VERBOSE, string() + __FUNCTION__ + mName);
+		if ( mKernel )
+		{
+			clReleaseKernel( mKernel );
+		}
 	}
 	
 	/*
@@ -29,13 +34,13 @@ namespace msa {
 	 }*/
 	
 	bool OpenCLKernel::run(bool Blocking,int numDimensions, size_t *globalSize, size_t *localSize) {
-		assert(clKernel);
-		if ( !clKernel )
+		assert(mKernel);
+		if ( !mKernel )
 			return false;
 		
 		//	size_t localSize = MIN(n, info.maxWorkGroupSize);
 		cl_event WaitEvent = NULL;
-		cl_int err = clEnqueueNDRangeKernel( getQueue(), clKernel, numDimensions, NULL, globalSize, localSize, 0, NULL, Blocking ? &WaitEvent : NULL );
+		cl_int err = clEnqueueNDRangeKernel( getQueue(), mKernel, numDimensions, NULL, globalSize, localSize, 0, NULL, Blocking ? &WaitEvent : NULL );
 		assert(err == CL_SUCCESS);
 		if ( err != CL_SUCCESS )
 			return false;
@@ -89,12 +94,4 @@ namespace msa {
 		}
 	}
 	
-	
-	cl_kernel& OpenCLKernel::getCLKernel() {
-		return clKernel;
-	}
-	
-	string OpenCLKernel::getName() {
-		return name;
-	}
 }

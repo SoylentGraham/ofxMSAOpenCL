@@ -12,32 +12,94 @@
 
 namespace msa {
 	
+	class clDeviceInfo
+	{
+	public:
+		//	gr: essential that some parameters are initialsied
+		clDeviceInfo() :
+			type	( CL_DEVICE_TYPE_ALL )
+		{
+		}
+
+	public:
+		cl_char		vendorName[1024];
+		cl_char		deviceName[1024];
+		cl_char		driverVersion[1024];
+		cl_char		deviceVersion[1024];
+		cl_uint		maxComputeUnits;
+		cl_uint		maxWorkItemDimensions;
+		size_t		maxWorkItemSizes[32];
+		size_t		maxWorkGroupSize;
+		cl_uint		maxClockFrequency;
+		cl_ulong	maxMemAllocSize;
+		cl_bool		imageSupport;
+		cl_uint		maxReadImageArgs;
+		cl_uint		maxWriteImageArgs;
+		size_t		image2dMaxWidth;
+		size_t		image2dMaxHeight;
+		size_t		image3dMaxWidth;
+		size_t		image3dMaxHeight;
+		size_t		image3dMaxDepth;
+		cl_uint		maxSamplers;
+		size_t		maxParameterSize;
+		cl_ulong	globalMemCacheSize;
+		cl_ulong	globalMemSize;
+		cl_ulong	maxConstantBufferSize;
+		cl_uint		maxConstantArgs;
+		cl_ulong	localMemSize;
+		cl_bool		errorCorrectionSupport;
+		size_t		profilingTimerResolution;
+		cl_bool		endianLittle;
+		cl_char		profile[1024];
+		cl_char		extensions[1024];		
+		cl_device_type		type;
+	};
+
+	class OpenClDevice
+	{
+	public:
+		enum Type
+		{
+			Invalid = CL_DEVICE_TYPE_ALL,
+			Any	= CL_DEVICE_TYPE_CPU|CL_DEVICE_TYPE_GPU,
+			CPU	= CL_DEVICE_TYPE_CPU,
+			GPU	= CL_DEVICE_TYPE_GPU,
+		};
+	public:
+		OpenClDevice() :
+			mPlatform	( NULL ),
+			mDeviceId	( NULL )
+		{
+		}
+
+		Type			GetType() const	{	return static_cast<Type>( mInfo.type );	}
+
+	public:
+		cl_platform_id	mPlatform;
+		cl_device_id	mDeviceId;
+		clDeviceInfo	mInfo;
+	};
+
 	class OpenCL {
 	public:
 		OpenCL();
 		~OpenCL();
 		
-		static OpenCL *currentOpenCL;
-		
 		// initializes openCL with the passed in device (leave empty for default)
-		bool	setup(int clDeviceType = CL_DEVICE_TYPE_GPU);
+		bool	setup();
 		bool	setupFromOpenGL();
 		
-		bool				isInitialised() const	{	return isSetup && mDevices.size() && mQueues.size();	}
-		cl_device_id&		getDevice();
-		cl_context&			getContext();
-		cl_command_queue&	getQueue();
-		cl_command_queue	createNewQueue();	//	create extra queue
-		
-		
-		// doesn't return until all commands in the queue have been sent
-		void	flush();
-		
-		
-		// doesn't return until all commands in the queue have been sent and finished executing
-		void	finish();	
-		
-		
+		bool				isInitialised() const	{	return HasDevice() && HasContext();	}
+		cl_context			getContext() const		{	return mContext;	}
+		cl_command_queue	createQueue(OpenClDevice::Type DeviceType);	//	create extra queue
+		bool				HasDevice() const		{	return mDevices.size();	}
+		bool				HasContext() const		{	return getContext() != NULL;	}
+		OpenClDevice*		GetDevice(OpenClDevice::Type DeviceType);
+		OpenClDevice*		GetDevice(cl_command_queue Queue);
+		OpenClDevice*		GetDevice(cl_device_id Device);
+		template<size_t MAXDEVICES>
+		int					GetDevices(cl_device_id (&Devices)[MAXDEVICES]);
+
 		// load a program (contains a bunch of kernels)
 		// returns pointer to the program should you need it (for most operations you won't need this)
 		OpenCLProgram*	loadProgramFromFile(string filename, bool isBinary=false,const char* BuildOptions=NULL);
@@ -46,7 +108,7 @@ namespace msa {
 		
 		// specify a kernel to load from the specified program
 		// returns pointer to the kernel 
-		OpenCLKernel*	loadKernel(string kernelName,OpenCLProgram& program,cl_command_queue Queue=NULL);
+		OpenCLKernel*	loadKernel(string kernelName,OpenCLProgram& program,cl_command_queue Queue);
 		void			deleteKernel(OpenCLKernel& Kernel);
 		
 		
@@ -54,10 +116,10 @@ namespace msa {
 		// create OpenCL buffer memory objects
 		// if dataPtr parameter is passed in, data is uploaded immediately
 		// parameters with default values can be omited
-		OpenCLBuffer*	createBuffer(int numberOfBytes,
+		OpenCLBuffer*	createBuffer(cl_command_queue Queue,int numberOfBytes,
 									 cl_mem_flags memFlags = CL_MEM_READ_WRITE,
 									 void *dataPtr = NULL,
-									 bool blockingWrite = CL_FALSE,cl_command_queue Queue=NULL);
+									 bool blockingWrite = CL_FALSE);
 		
 		// create buffer from the GL Object - e.g. VBO (they share memory space on device)
 		// parameters with default values can be omited
@@ -107,47 +169,17 @@ namespace msa {
 										  void *dataPtr = NULL,
 										  bool blockingWrite = CL_FALSE);
 		
-		string getInfoAsString();
+		string				getInfoAsString(const clDeviceInfo& Info);
 		static const char*	getErrorAsString(cl_int err);
 		
-		struct {
-			cl_char		vendorName[1024];
-			cl_char		deviceName[1024];
-			cl_char		driverVersion[1024];
-			cl_char		deviceVersion[1024];
-			cl_uint		maxComputeUnits;
-			cl_uint		maxWorkItemDimensions;
-			size_t		maxWorkItemSizes[32];
-			size_t		maxWorkGroupSize;
-			cl_uint		maxClockFrequency;
-			cl_ulong	maxMemAllocSize;
-			cl_bool		imageSupport;
-			cl_uint		maxReadImageArgs;
-			cl_uint		maxWriteImageArgs;
-			size_t		image2dMaxWidth;
-			size_t		image2dMaxHeight;
-			size_t		image3dMaxWidth;
-			size_t		image3dMaxHeight;
-			size_t		image3dMaxDepth;
-			cl_uint		maxSamplers;
-			size_t		maxParameterSize;
-			cl_ulong	globalMemCacheSize;
-			cl_ulong	globalMemSize;
-			cl_ulong	maxConstantBufferSize;
-			cl_uint		maxConstantArgs;
-			cl_ulong	localMemSize;
-			cl_bool		errorCorrectionSupport;
-			size_t		profilingTimerResolution;
-			cl_bool		endianLittle;
-			cl_char		profile[1024];
-			cl_char		extensions[1024];		
-		} info;
-		
-		
+	
+	protected:
+		bool				createDevices();
+	
 	protected:	
 		
-		vector<cl_device_id>			mDevices;
-		cl_context						clContext;
+		vector<OpenClDevice>			mDevices;
+		cl_context						mContext;
 		vector<cl_command_queue>		mQueues;
 
 		ofMutex							mMemObjectsLock;
@@ -158,10 +190,20 @@ namespace msa {
 		vector<OpenCLProgram*>			programs;	
 		vector<OpenCLKernel*>			kernels;
 		vector<OpenCLMemoryObject*>		memObjects;
-		bool							isSetup;
-		
-		bool createDevice(int clDeviceType);
-		void createQueue();
 	};
-	
-}
+
+
+
+	template<size_t MAXDEVICES>
+	inline int OpenCL::GetDevices(cl_device_id (&Devices)[MAXDEVICES])
+	{
+		int DeviceCount = 0;
+		for ( int d=0;	DeviceCount<MAXDEVICES && d<mDevices.size();	d++ )
+		{
+			auto& Device = mDevices[d];
+			Devices[DeviceCount++] = Device.mDeviceId;
+		}
+		return DeviceCount;
+	}
+
+};

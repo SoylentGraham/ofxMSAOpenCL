@@ -24,8 +24,7 @@ namespace msa {
 //	, public ofBaseDraws
 	{
 	public:
-		
-		OpenCLImage();
+		OpenCLImage(OpenCL& Parent);
 		
 		
 		// create an Image with given properties
@@ -117,6 +116,11 @@ namespace msa {
 		
 		
 	protected:
+		void	init(int width, int height, int depth);
+
+	protected:
+		OpenCL&			mParent;
+
 		int				width;
 		int				height;
 		int				depth;
@@ -125,8 +129,5 @@ namespace msa {
 		size_t			region[3];
 		
 		ofTexture		*texture;
-		
-		void init(int width, int height, int depth);
-		
 	};
 }

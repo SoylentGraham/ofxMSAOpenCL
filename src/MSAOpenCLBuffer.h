@@ -20,20 +20,19 @@ namespace msa {
  	
 	class OpenCLBuffer : public OpenCLMemoryObject {
 	public:
-		
-		OpenCLBuffer();
+		OpenCLBuffer(OpenCL& Parent);
 
 		// if dataPtr parameter is passed in, data is uploaded immediately
 		// parameters with default values can be omited
 		bool initBuffer(	int numberOfBytes,
 						cl_mem_flags memFlags,
 						void *dataPtr,
-						bool blockingWrite,cl_command_queue Queue=NULL);
+						bool blockingWrite,cl_command_queue Queue);
 		
 		
 		// create buffer from the GL Object - e.g. VBO (they share memory space on device)
 		// parameters with default values can be omited
-		void initFromGLObject(	GLuint glBufferObject,
+		void initFromGLObject(GLuint glBufferObject,
 							  cl_mem_flags memFlags = CL_MEM_READ_WRITE);
 		
 		
@@ -41,29 +40,27 @@ namespace msa {
 		bool read(void *dataPtr,
 				  int startOffsetBytes,
 				  int numberOfBytes,
-				  bool blockingRead,cl_command_queue Queue=NULL);
+				  bool blockingRead,cl_command_queue Queue);
 		
 		// write from main memory (dataPtr), into device memory
 		bool write(void *dataPtr,
 				   int startOffsetBytes,
 				   int numberOfBytes,
-				   bool blockingWrite,cl_command_queue Queue=NULL);
+				   bool blockingWrite,cl_command_queue Queue);
 		
 		bool writeAsync(void *dataPtr,
 				   int startOffsetBytes,
 				   int numberOfBytes,
-				   cl_event* Event,cl_command_queue Queue=NULL);
+				   cl_event* Event,cl_command_queue Queue);
 		
 		
 		// copy data from another object on device memory
 		bool copyFrom(OpenCLBuffer &srcBuffer,
 					  int srcOffsetBytes,
 					  int dstOffsetBytes,
-					  int numberOfBytes,cl_command_queue Queue=NULL);
-		
-	protected:
-		//	int numberOfBytes;		//dont know how big it is if we pass in globject ?
-		
-		void init();
+					  int numberOfBytes,cl_command_queue Queue);
+
+	public:
+		OpenCL&		mParent;
 	};
 }

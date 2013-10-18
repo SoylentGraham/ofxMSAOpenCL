@@ -19,12 +19,8 @@ namespace msa {
 	public:
 		virtual ~OpenCLMemoryObject();
 		
-		cl_mem	&getCLMem();
-		
-		operator cl_mem&() {
-			return getCLMem();
-		}
-		
+		cl_mem		&getCLMem()	{	return clMemObject;	}
+		operator	cl_mem&()	{	return getCLMem();	}
 		
 	public:
 #if defined(ENABLE_OPENCL_RELEASE_LOCK)
@@ -34,8 +30,5 @@ namespace msa {
 	protected:
 		OpenCLMemoryObject();
 		cl_mem		clMemObject;
-		OpenCL*		pOpenCL;
-		
-		void memoryObjectInit();
 	};
 }

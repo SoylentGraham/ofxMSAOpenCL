@@ -5,18 +5,16 @@
 
 namespace msa {
 	
-	OpenCL *OpenCL::currentOpenCL = NULL;
-	
 	
 	OpenCL::OpenCL() :
-		isSetup		( false ),
-		clContext	( NULL )
+		mContext	( NULL )
 	{
 		//ofSetLogLevel( OF_LOG_VERBOSE );
 		ofLog(OF_LOG_VERBOSE, __FUNCTION__ );
 	}
 	
-	OpenCL::~OpenCL() {
+	OpenCL::~OpenCL() 
+	{
 		ofLog(OF_LOG_VERBOSE, __FUNCTION__ );
 		
 		for ( int q=0;	q<mQueues.size();	q++ )
@@ -37,44 +35,40 @@ namespace msa {
 		for ( int q=0;	q<mQueues.size();	q++ )
 			clReleaseCommandQueue( mQueues[q] );
 
-		clReleaseContext(clContext);
+		clReleaseContext( mContext );
+		mContext = NULL;
 	}
 	
 	
-	bool OpenCL::setup(int clDeviceType) {
-		ofLog(OF_LOG_VERBOSE, string() + __FUNCTION__ + " " + ofToString(clDeviceType));
-		
-		if(isSetup) {
+	bool OpenCL::setup()
+	{
+		ofLog(OF_LOG_VERBOSE, string() + __FUNCTION__ );
+		if( isInitialised() )
+		{
 			ofLog(OF_LOG_VERBOSE, "... already setup. returning");
 			return true;
 		}
 		
-		if ( !createDevice(clDeviceType) )
+		if ( !createDevices() )
 			return false;
 		
+		//	make array of all our devices
 		cl_device_id DeviceBuffer[100];
+		int DeviceBufferSize = sizeof(DeviceBuffer)/sizeof(DeviceBuffer[0]);
 		int DeviceCount = 0;
-		for ( int d=0;	d<min(sizeof(DeviceBuffer)/sizeof(DeviceBuffer[0]),mDevices.size());	d++ )
-			DeviceBuffer[DeviceCount++] = mDevices[d];
+		for ( int d=0;	DeviceCount<DeviceBufferSize && d<mDevices.size();	d++ )
+			DeviceBuffer[DeviceCount++] = mDevices[d].mDeviceId;
 
+		//	create context with all our devices
 		cl_int err;
-		clContext = clCreateContext(NULL, DeviceCount, DeviceBuffer, NULL, NULL, &err);
-		if( !clContext || err != CL_SUCCESS )
+		mContext = clCreateContext(NULL, DeviceCount, DeviceBuffer, NULL, NULL, &err);
+		if( !mContext || err != CL_SUCCESS )
 		{
-			ofLog(OF_LOG_ERROR, "Error creating clContext.");
-			assert(err != CL_INVALID_PLATFORM);
-			assert(err != CL_INVALID_VALUE);
-			assert(err != CL_INVALID_DEVICE);
-			assert(err != CL_INVALID_DEVICE_TYPE);
-			assert(err != CL_DEVICE_NOT_AVAILABLE);
-			assert(err != CL_DEVICE_NOT_FOUND);
-			assert(err != CL_OUT_OF_HOST_MEMORY);
+			ofLogError( string("Error creating clContext:") + getErrorAsString(err) );
 			assert(false);
 			return false;
-		}
+		}		
 		
-		
-		createQueue();
 		return true;
 	}	
 	
@@ -101,8 +95,8 @@ namespace msa {
 		assert(false);
 #endif
 		
-		clContext = clCreateContext(properties, 0, 0, NULL, NULL, &err);
-		if(clContext == NULL) {
+		mContext = clCreateContext(properties, 0, 0, NULL, NULL, &err);
+		if(mContext == NULL) {
 			ofLog(OF_LOG_ERROR, "Error creating clContext.");
 			assert(err != CL_INVALID_PLATFORM);
 			assert(err != CL_INVALID_VALUE);
@@ -119,26 +113,49 @@ namespace msa {
 		return false;
 	}	
 	
-	
-	cl_device_id& OpenCL::getDevice() {
-		return mDevices[0];
+	OpenClDevice* OpenCL::GetDevice(cl_command_queue Queue)
+	{
+		cl_device_id Device = NULL;
+		auto err = clGetCommandQueueInfo( Queue, CL_QUEUE_DEVICE, sizeof(Device), &Device, NULL );
+		if ( err != CL_SUCCESS)
+		{
+			ofLogError( string() + "Error getting queue's device; " + getErrorAsString( err ) );
+			return NULL;
+		}
+		return GetDevice( Device );
+	}
+
+	OpenClDevice* OpenCL::GetDevice(OpenClDevice::Type DeviceType)
+	{
+		//	find matching type
+		for ( int d=0;	d<mDevices.size();	d++ )
+		{
+			auto& Device = mDevices[d];
+			if ( DeviceType == OpenClDevice::Any )
+				return &Device;
+			if ( Device.GetType() == DeviceType )
+				return &Device;
+		}
+		return NULL;
 	}
 	
-	
-	cl_context& OpenCL::getContext() {
-		return clContext;
+	OpenClDevice* OpenCL::GetDevice(cl_device_id DeviceId)
+	{
+		//	find matching type
+		for ( int d=0;	d<mDevices.size();	d++ )
+		{
+			auto& Device = mDevices[d];
+			if ( Device.mDeviceId == DeviceId )
+				return &Device;
+		}
+		return NULL;
 	}
-	
-	cl_command_queue& OpenCL::getQueue() {
-		return mQueues[0];
-	}
-	
-	
 	
 	OpenCLProgram* OpenCL::loadProgramFromFile(string filename, bool isBinary,const char* BuildOptions) { 
 		assert( isInitialised() );
 		ofLog(OF_LOG_VERBOSE, string() + __FUNCTION__ + " " + filename );
-		OpenCLProgram *p = new OpenCLProgram();
+		
+		OpenCLProgram *p = new OpenCLProgram( *this );
 		p->loadFromFile(filename, isBinary, BuildOptions );
 
 		ofMutex::ScopedLock Lock(mProgramsLock);
@@ -150,7 +167,7 @@ namespace msa {
 	OpenCLProgram* OpenCL::loadProgramFromSource(string source) {
 		assert( isInitialised() );
 		ofLog(OF_LOG_VERBOSE, string() + __FUNCTION__ );
-		OpenCLProgram *p = new OpenCLProgram();
+		OpenCLProgram *p = new OpenCLProgram( *this );
 		p->loadFromSource(source,NULL,NULL);
 
 		ofMutex::ScopedLock Lock(mProgramsLock);
@@ -159,9 +176,13 @@ namespace msa {
 	} 
 	
 	
-	OpenCLKernel* OpenCL::loadKernel(string kernelName,OpenCLProgram& program,cl_command_queue Queue) {
+	OpenCLKernel* OpenCL::loadKernel(string kernelName,OpenCLProgram& program,cl_command_queue Queue) 
+	{
 		assert( isInitialised() );
-		ofLog(OF_LOG_VERBOSE, string() + __FUNCTION__ + " " + kernelName + ", " + program.getName() );
+		assert( Queue );
+		if ( !Queue )
+			return NULL;
+		//ofLog(OF_LOG_VERBOSE, string() + __FUNCTION__ + " " + kernelName + ", " + program.getName() );
 		OpenCLKernel *k = program.loadKernel( kernelName, Queue );
 		
 		ofMutex::ScopedLock Lock(mKernelsLock);
@@ -171,7 +192,7 @@ namespace msa {
 	
 	void OpenCL::deleteKernel(OpenCLKernel& Kernel)
 	{
-		ofLog(OF_LOG_VERBOSE, string() + __FUNCTION__ );
+		//ofLog(OF_LOG_VERBOSE, string() + __FUNCTION__ );
 		assert( isInitialised() );
 		delete &Kernel;
 		ofMutex::ScopedLock Lock(mKernelsLock);
@@ -181,7 +202,7 @@ namespace msa {
 
 	void OpenCL::deleteBuffer(OpenCLMemoryObject& Object)
 	{
-		ofLog(OF_LOG_VERBOSE, string() + __FUNCTION__ );
+		//ofLog(OF_LOG_VERBOSE, string() + __FUNCTION__ );
 		assert( isInitialised() );
 		delete &Object;
 		ofMutex::ScopedLock Lock(mMemObjectsLock);
@@ -189,17 +210,16 @@ namespace msa {
 		memObjects.erase( it );
 	}
 
-	OpenCLBuffer* OpenCL::createBuffer(int numberOfBytes, cl_mem_flags memFlags, void *dataPtr, bool blockingWrite,cl_command_queue Queue) {
-		ofLog(OF_LOG_VERBOSE, string() + __FUNCTION__ + " " + ofToString(numberOfBytes,0) + " bytes; blocking: " + ofToString(blockingWrite,0)  );
+	OpenCLBuffer* OpenCL::createBuffer(cl_command_queue Queue,int numberOfBytes, cl_mem_flags memFlags, void *dataPtr, bool blockingWrite) {
+		//ofLog(OF_LOG_VERBOSE, string() + __FUNCTION__ + " " + ofToString(numberOfBytes,0) + " bytes; blocking: " + ofToString(blockingWrite,0)  );
 		assert( isInitialised() );
-		OpenCLBuffer *clBuffer = new OpenCLBuffer();
+		OpenCLBuffer *clBuffer = new OpenCLBuffer(*this);
 		if (!clBuffer )
 			return NULL;
-		clBuffer->initBuffer(numberOfBytes, memFlags, dataPtr, blockingWrite,Queue);
+		clBuffer->initBuffer(numberOfBytes, memFlags, dataPtr, blockingWrite, Queue );
 
 		ofMutex::ScopedLock Lock(mMemObjectsLock);
 		memObjects.push_back(clBuffer);
-		ofLog(OF_LOG_VERBOSE, string("FINISHED: ") + __FUNCTION__ + " " + ofToString(numberOfBytes,0) + " bytes; blocking: " + ofToString(blockingWrite,0)  );
 		return clBuffer;
 	}
 	
@@ -207,7 +227,7 @@ namespace msa {
 	OpenCLBuffer* OpenCL::createBufferFromGLObject(GLuint glBufferObject, cl_mem_flags memFlags) {
 		ofLog(OF_LOG_VERBOSE, string() + __FUNCTION__ );
 		assert( isInitialised() );
-		OpenCLBuffer *clBuffer = new OpenCLBuffer();
+		OpenCLBuffer *clBuffer = new OpenCLBuffer(*this);
 		clBuffer->initFromGLObject(glBufferObject, memFlags);
 
 		ofMutex::ScopedLock Lock(mMemObjectsLock);
@@ -217,16 +237,16 @@ namespace msa {
 	
 	
 	OpenCLImage* OpenCL::createImage2D(cl_command_queue Queue,int width, int height, cl_channel_order imageChannelOrder, cl_channel_type imageChannelDataType, cl_mem_flags memFlags, void *dataPtr, bool blockingWrite) {
-		ofLog(OF_LOG_VERBOSE, string() + __FUNCTION__ );
+		//ofLog(OF_LOG_VERBOSE, string() + __FUNCTION__ );
 		assert( isInitialised() );
 		return createImage3D(Queue,width, height, 1, imageChannelOrder, imageChannelDataType, memFlags, dataPtr, blockingWrite);
 	}
 	
 	
 	OpenCLImage* OpenCL::createImageFromTexture(ofTexture &tex, cl_mem_flags memFlags, int mipLevel) {
-		ofLog(OF_LOG_VERBOSE, string() + __FUNCTION__ );
+		//ofLog(OF_LOG_VERBOSE, string() + __FUNCTION__ );
 		assert( isInitialised() );
-		OpenCLImage *clImage = new OpenCLImage();
+		OpenCLImage *clImage = new OpenCLImage( *this );
 		clImage->initFromTexture(tex, memFlags, mipLevel);
 
 		ofMutex::ScopedLock Lock(mMemObjectsLock);
@@ -236,7 +256,7 @@ namespace msa {
 	
 	OpenCLImage* OpenCL::createImageWithTexture(cl_command_queue Queue,int width, int height, int glType, cl_mem_flags memFlags) {
 		assert( isInitialised() );
-		OpenCLImage *clImage = new OpenCLImage();
+		OpenCLImage *clImage = new OpenCLImage( *this );
 		clImage->initWithTexture(Queue,width, height, glType, memFlags);
 		
 		ofMutex::ScopedLock Lock(mMemObjectsLock);
@@ -247,7 +267,7 @@ namespace msa {
 	
 	OpenCLImage* OpenCL::createImage3D(cl_command_queue Queue,int width, int height, int depth, cl_channel_order imageChannelOrder, cl_channel_type imageChannelDataType, cl_mem_flags memFlags, void *dataPtr, bool blockingWrite) {
 		assert( isInitialised() );
-		OpenCLImage *clImage = new OpenCLImage();
+		OpenCLImage *clImage = new OpenCLImage( *this );
 		clImage->initWithoutTexture(Queue,width, height, depth, imageChannelOrder, imageChannelDataType, memFlags, dataPtr, blockingWrite);
 	
 		ofMutex::ScopedLock Lock(mMemObjectsLock);
@@ -256,21 +276,9 @@ namespace msa {
 	}
 	
 	
-	void OpenCL::flush() {
-		assert( isInitialised() );
-		clFlush( getQueue() );
-	}
-	
-	
-	void OpenCL::finish() {
-		assert( isInitialised() );
-		clFinish( getQueue() );
-	}
-	
-	
-	
-	bool OpenCL::createDevice(int clDeviceType) 
+	bool OpenCL::createDevices() 
 	{
+		int DeviceFilter = OpenClDevice::Any;
 		cl_int err;
 		
 		cl_platform_id PlatformBuffer[100];
@@ -292,18 +300,26 @@ namespace msa {
 		for ( int p=0;	p<PlatformCount;	p++ )
 		{
 			cl_platform_id Platform = PlatformBuffer[p];
+
 			cl_device_id DeviceBuffer[100];
 			cl_uint DeviceCount = 0;
 			const int MaxDevices = sizeof(DeviceBuffer)/sizeof(DeviceBuffer[0]);
-
-			err = clGetDeviceIDs( Platform, clDeviceType, MaxDevices, DeviceBuffer, &DeviceCount);
-			assert( DeviceCount <= MaxDevices );
+			err = clGetDeviceIDs( Platform, OpenClDevice::Any, MaxDevices, DeviceBuffer, &DeviceCount);
+			assert( DeviceCount >=0 && DeviceCount <= MaxDevices );
 			if ( err != CL_SUCCESS )
+			{
+				ofLogError( string("Failed to get devices; ") + getErrorAsString( err ) );
 				continue;
-
+			}
+			
 			//	save devices
 			for ( int d=0;	d<DeviceCount;	d++ )
-				mDevices.push_back( DeviceBuffer[d] );			
+			{
+				OpenClDevice Device;
+				Device.mDeviceId = DeviceBuffer[d];
+				Device.mPlatform = Platform;
+				mDevices.push_back( Device );
+			}				
 		}
 
 		ofLog(OF_LOG_VERBOSE, ofToString(mDevices.size(), 0) + " devices found, on " + ofToString(PlatformCount, 0) + " platforms\n");
@@ -313,9 +329,13 @@ namespace msa {
 			return false;
 		}
 		
-		for(int i=0; i<mDevices.size(); i++) {
+		//	extract info
+		for(int i=0; i<mDevices.size(); i++) 
+		{
 			size_t	size;
-			cl_device_id d = mDevices[i];
+			auto& d = mDevices[i].mDeviceId;
+			auto& info = mDevices[i].mInfo;
+			
 			err = clGetDeviceInfo(d, CL_DEVICE_VENDOR, sizeof(info.vendorName), info.vendorName, &size);
 			err |= clGetDeviceInfo(d, CL_DEVICE_NAME, sizeof(info.deviceName), info.deviceName, &size);
 			err |= clGetDeviceInfo(d, CL_DRIVER_VERSION, sizeof(info.driverVersion), info.driverVersion, &size);
@@ -346,19 +366,19 @@ namespace msa {
 			err |= clGetDeviceInfo(d, CL_DEVICE_ENDIAN_LITTLE, sizeof(info.endianLittle), &info.endianLittle, &size);
 			err |= clGetDeviceInfo(d, CL_DEVICE_PROFILE, sizeof(info.profile), info.profile, &size);
 			err |= clGetDeviceInfo(d, CL_DEVICE_EXTENSIONS, sizeof(info.extensions), info.extensions, &size);
+			err |= clGetDeviceInfo(d, CL_DEVICE_TYPE, sizeof(info.type), &info.type, &size);
 			
 			if(err != CL_SUCCESS) {
-				ofLog(OF_LOG_ERROR, "Error getting clDevice information.");
-				assert(false);
+				ofLog(OF_LOG_ERROR, string("Error getting clDevice information: ") + getErrorAsString(err) );
 			}
 			
-			ofLog(OF_LOG_VERBOSE, getInfoAsString());
+			ofLog(OF_LOG_VERBOSE, getInfoAsString(info));
 		}
 				
 		return true;
 	}
 	
-	string OpenCL::getInfoAsString() {
+	string OpenCL::getInfoAsString(const clDeviceInfo& info) {
 		return string("\n\n*********\nOpenCL Device information:") + 
 		"\n vendorName.................." + string((char*)info.vendorName) + 
 		"\n deviceName.................." + string((char*)info.deviceName) + 
@@ -450,37 +470,33 @@ namespace msa {
 		return "Unhandled opencl error";
 	}
 
-	
-	void OpenCL::createQueue() {
-		ofLog(OF_LOG_VERBOSE, string() + __FUNCTION__ );
-		if ( !mDevices.size() )
-			return;
 
-		cl_command_queue Queue = clCreateCommandQueue(clContext, getDevice(), 0, NULL);
-		if( !Queue )
-		{
-			ofLog(OF_LOG_ERROR, "Error creating command queue.");
-			assert(false);
-			return;
-		}
-		ofMutex::ScopedLock lock(mQueuesLock);
-		mQueues.push_back( Queue );
-		
-		isSetup = true;
-		currentOpenCL = this;
-	}
 	
-	cl_command_queue OpenCL::createNewQueue() {
-		ofLog(OF_LOG_VERBOSE, string() + __FUNCTION__ );
+	cl_command_queue OpenCL::createQueue(OpenClDevice::Type DeviceType) 
+	{
 		assert( isInitialised() );
+		ofLog(OF_LOG_VERBOSE, string() + __FUNCTION__ );
+
+		//	pick a device
+		auto* pDevice = GetDevice( DeviceType );
+		if ( !pDevice )
+		{
+			ofLogError("Failed to find device of specified type.");
+			return false;
+		}
+
+		auto DeviceId = pDevice->mDeviceId;
 		cl_int Err = CL_SUCCESS;
-		cl_command_queue Queue = clCreateCommandQueue(clContext, getDevice(), 0, &Err );
+		cl_command_queue Queue = clCreateCommandQueue(mContext, DeviceId, 0, &Err );
 		if ( !Queue || Err != CL_SUCCESS )
+		{
+			ofLogError( string("Failed to create queue; ") + getErrorAsString( Err ) );
 			return NULL;
+		}
 
 		ofMutex::ScopedLock lock(mQueuesLock);
 		mQueues.push_back( Queue );
 		return Queue;
 	}
-	
+
 }
