@@ -5,7 +5,20 @@
 
 namespace msa {
 	
-	
+clPlatformInfo::clPlatformInfo(cl_platform_id Platform)
+{
+	mName[0] = '\0';
+	mVendor[0] = '\0';
+	mVersion[0] = '\0';
+
+	if ( !Platform )
+		return;
+
+	clGetPlatformInfo( Platform, CL_PLATFORM_VERSION, sizeof(mVersion), mVersion, NULL );
+	clGetPlatformInfo( Platform, CL_PLATFORM_NAME,sizeof(mName),  mName, NULL );
+	clGetPlatformInfo( Platform, CL_PLATFORM_VENDOR, sizeof(mVendor), mVendor, NULL );
+}
+
 	OpenCL::OpenCL() :
 		mContext	( NULL )
 	{
@@ -40,7 +53,7 @@ namespace msa {
 	}
 	
 	
-	bool OpenCL::setup()
+	bool OpenCL::setup(const char* PlatformName)
 	{
 		ofLog(OF_LOG_VERBOSE, string() + __FUNCTION__ );
 		if( isInitialised() )
@@ -49,7 +62,7 @@ namespace msa {
 			return true;
 		}
 		
-		if ( !createDevices() )
+		if ( !createDevices(PlatformName) )
 			return false;
 		
 		//	make array of all our devices
@@ -276,7 +289,7 @@ namespace msa {
 	}
 	
 	
-	bool OpenCL::createDevices() 
+	bool OpenCL::createDevices(const char* PlatformName) 
 	{
 		int DeviceFilter = OpenClDevice::Any;
 		cl_int err;
@@ -285,44 +298,82 @@ namespace msa {
 		cl_uint PlatformCount = 0;
 		const int MaxPlatforms = sizeof(PlatformBuffer)/sizeof(PlatformBuffer[0]);
 
-		//	windows AMD sdk/ati radeon driver implementation doesn't accept NULL as a platform ID, so fetch it first
+		//	windows AMD sdk/ati radeon driver implementation doesn't accept NULL as a platform ID, so fetch the list of platforms first
 		err = clGetPlatformIDs(	MaxPlatforms, PlatformBuffer, &PlatformCount );
-		assert( PlatformCount <= MaxPlatforms );
-
-		//	error fetching platforms... try NULL anyway
+		assert( PlatformCount >= 0 && PlatformCount <= MaxPlatforms );
 		if ( err != CL_SUCCESS || PlatformCount == 0 )
 		{
-			PlatformBuffer[0] = NULL;
-			PlatformCount = 1;
+			ofLogError( string() + "Failed to get opencl platforms; " + getErrorAsString(err) );
+			return false;
 		}
 
-		//	collect devices on each platform
-		for ( int p=0;	p<PlatformCount;	p++ )
+		//	filter out platforms
+		for ( int p=PlatformCount-1;	PlatformName && p>=0;	p-- )
 		{
 			cl_platform_id Platform = PlatformBuffer[p];
+			clPlatformInfo PlatformInfo( Platform );
 
-			cl_device_id DeviceBuffer[100];
-			cl_uint DeviceCount = 0;
-			const int MaxDevices = sizeof(DeviceBuffer)/sizeof(DeviceBuffer[0]);
-			err = clGetDeviceIDs( Platform, OpenClDevice::Any, MaxDevices, DeviceBuffer, &DeviceCount);
-			assert( DeviceCount >=0 && DeviceCount <= MaxDevices );
-			if ( err != CL_SUCCESS )
-			{
-				ofLogError( string("Failed to get devices; ") + getErrorAsString( err ) );
+			//	need to filter platform
+			if ( PlatformInfo.GetName().find(string(PlatformName)) != std::string::npos )
 				continue;
-			}
-			
-			//	save devices
-			for ( int d=0;	d<DeviceCount;	d++ )
-			{
-				OpenClDevice Device;
-				Device.mDeviceId = DeviceBuffer[d];
-				Device.mPlatform = Platform;
-				mDevices.push_back( Device );
-			}				
+
+			//	remove from array
+			for ( int i=p+1;	i<PlatformCount;	i++ )
+				PlatformBuffer[i-1] = PlatformBuffer[i];
+			PlatformCount--;
+			continue;
 		}
 
-		ofLog(OF_LOG_VERBOSE, ofToString(mDevices.size(), 0) + " devices found, on " + ofToString(PlatformCount, 0) + " platforms\n");
+		//	no platforms
+		if ( PlatformCount == 0 )
+		{
+			ofLogError( string() + __FUNCTION__ + " no opencl platforms found");
+			return false;
+		}
+
+		//	have more than one platform, need to abort and make the user pick a platform
+		if ( PlatformCount > 1 )
+		{
+			std::string Debug = __FUNCTION__;
+			Debug += " More than one opencl platform found. Need to specify which platform name to use; ";
+			for ( int p=0;	p<PlatformCount;	p++ )
+			{
+				cl_platform_id Platform = PlatformBuffer[p];
+				clPlatformInfo PlatformInfo( Platform );
+				Debug += "\n";
+				Debug += PlatformInfo.GetName();
+			}
+			ofLogError( Debug.c_str() );
+			return false;
+		}
+
+		//	collect devices
+		cl_platform_id Platform = PlatformBuffer[0];
+
+		//	get platform info
+		clPlatformInfo PlatformInfo( Platform );
+
+		cl_device_id DeviceBuffer[100];
+		cl_uint DeviceCount = 0;
+		const int MaxDevices = sizeof(DeviceBuffer)/sizeof(DeviceBuffer[0]);
+		err = clGetDeviceIDs( Platform, OpenClDevice::Any, MaxDevices, DeviceBuffer, &DeviceCount);
+		assert( DeviceCount >=0 && DeviceCount <= MaxDevices );
+		if ( err != CL_SUCCESS )
+		{
+			ofLogError( string("Failed to get devices; ") + getErrorAsString( err ) );
+			return false;
+		}
+			
+		//	save devices
+		for ( int d=0;	d<DeviceCount;	d++ )
+		{
+			OpenClDevice Device;
+			Device.mDeviceId = DeviceBuffer[d];
+			Device.mPlatform = Platform;
+			mDevices.push_back( Device );
+		}				
+
+		ofLog(OF_LOG_VERBOSE, ofToString(mDevices.size(), 0) + " devices found, on " + PlatformInfo.GetName() + "\n");
 		if ( mDevices.size() == 0 )
 		{
 			assert(false);

@@ -12,6 +12,20 @@
 
 namespace msa {
 	
+	class clPlatformInfo
+	{
+	public:
+		clPlatformInfo(cl_platform_id Platform=NULL);
+
+		std::string	GetVendor() const	{	return std::string( reinterpret_cast<const char*>( mVendor ) );	}
+		std::string	GetName() const		{	return std::string( reinterpret_cast<const char*>( mName ) );	}
+
+	public:
+		cl_char		mName[200];
+		cl_char		mVendor[200];
+		cl_char		mVersion[200];
+	};
+
 	class clDeviceInfo
 	{
 	public:
@@ -78,6 +92,7 @@ namespace msa {
 		cl_platform_id	mPlatform;
 		cl_device_id	mDeviceId;
 		clDeviceInfo	mInfo;
+		clPlatformInfo	mPlatformInfo;
 	};
 
 	class OpenCL {
@@ -85,8 +100,8 @@ namespace msa {
 		OpenCL();
 		~OpenCL();
 		
-		// initializes openCL with the passed in device (leave empty for default)
-		bool	setup();
+		// initializes openCL. If we have more than one platform, we need to specify it. Vender is a simpler string :)
+		bool	setup(const char* PlatformName=NULL);
 		bool	setupFromOpenGL();
 		
 		bool				isInitialised() const	{	return HasDevice() && HasContext();	}
@@ -174,7 +189,7 @@ namespace msa {
 		
 	
 	protected:
-		bool				createDevices();
+		bool				createDevices(const char* PlatformName=NULL);
 	
 	protected:	
 		
